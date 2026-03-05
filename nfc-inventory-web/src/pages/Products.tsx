@@ -1,0 +1,495 @@
+import React, { useState, useEffect } from 'react';
+import Layout from '../components/Layout';
+import { getProducts, addProduct, deleteProduct, updateProduct } from '../api';
+import { Edit2, Trash2, Plus, Search, Package, Wifi, WifiOff, Database, CheckCircle2, AlertCircle, X } from 'lucide-react';
+
+const Products: React.FC = () => {
+    const [products, setProducts] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [showAddModal, setShowAddModal] = useState(false);
+    const [editingProduct, setEditingProduct] = useState<any>(null);
+    const [searchTerm, setSearchTerm] = useState("");
+    const [savingProduct, setSavingProduct] = useState(false);
+    const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
+    const [saveError, setSaveError] = useState<string | null>(null);
+    const userRole = localStorage.getItem('role') || 'user';
+    const isRestricted = userRole === 'user';
+
+    const fetchProducts = async () => {
+        try {
+            setLoading(true);
+            const token = localStorage.getItem('token');
+            if (!token) return;
+            const data = await getProducts(token);
+            setProducts(data);
+        } catch (err) {
+            console.error("Failed to fetch products", err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchProducts();
+    }, []);
+
+    // Auto-clear messages
+    useEffect(() => {
+        if (saveSuccess || saveError) {
+            const timer = setTimeout(() => {
+                setSaveSuccess(null);
+                setSaveError(null);
+            }, 5000);
+            return () => clearTimeout(timer);
+        }
+    }, [saveSuccess, saveError]);
+
+    const handleAddProduct = async (e: React.FormEvent) => {
+        e.preventDefault();
+        const form = e.target as HTMLFormElement;
+        const formData = new FormData(form);
+
+        const tagId = (formData.get('tag_id') as string)?.trim() || null;
+
+        const productData: any = {
+            name: formData.get('name'),
+            sku: formData.get('sku'),
+            category: formData.get('category'),
+            stock: parseInt(formData.get('stock') as string),
+            price: parseFloat(formData.get('price') as string),
+        };
+
+        // Only include tag_id if provided
+        if (tagId) {
+            productData.tag_id = tagId;
+        }
+
+        try {
+            setSavingProduct(true);
+            setSaveError(null);
+            const token = localStorage.getItem('token');
+            const result = await addProduct(token, productData);
+            setShowAddModal(false);
+            setSaveSuccess(`✅ Product "${result.name}" saved to MySQL database! ${tagId ? '(NFC Tag linked: ' + tagId + ')' : '(No NFC tag yet — link one via Scan page)'}`);
+            fetchProducts();
+        } catch (err: any) {
+            setSaveError('Failed to add product: ' + (err.message || err));
+        } finally {
+            setSavingProduct(false);
+        }
+    };
+
+    const handleUpdateProduct = async (e: React.FormEvent) => {
+        e.preventDefault();
+        const form = e.target as HTMLFormElement;
+        const formData = new FormData(form);
+
+        const tagId = (formData.get('tag_id') as string)?.trim() || null;
+
+        const productData: any = {
+            name: formData.get('name'),
+            category: formData.get('category'),
+            stock: parseInt(formData.get('stock') as string),
+            price: parseFloat(formData.get('price') as string),
+        };
+
+        // Include tag_id (can update/clear it)
+        if (tagId !== null) {
+            productData.tag_id = tagId || null;
+        }
+
+        try {
+            setSavingProduct(true);
+            setSaveError(null);
+            const token = localStorage.getItem('token');
+            await updateProduct(token, editingProduct.id, productData);
+            setEditingProduct(null);
+            setSaveSuccess(`✅ Product "${productData.name}" updated in MySQL!`);
+            fetchProducts();
+        } catch (err: any) {
+            setSaveError('Failed to update product: ' + (err.message || err));
+        } finally {
+            setSavingProduct(false);
+        }
+    };
+
+    const handleDelete = async (id: number) => {
+        if (!window.confirm("Are you sure you want to delete this product?")) return;
+        try {
+            const token = localStorage.getItem('token');
+            await deleteProduct(token, id);
+            setSaveSuccess("Product deleted from MySQL database.");
+            fetchProducts();
+        } catch (err: any) {
+            setSaveError('Failed to delete product: ' + (err.message || err));
+        }
+    };
+
+    const filteredProducts = products.filter(p =>
+        p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        p.sku.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    const nfcLinkedCount = products.filter(p => p.tag_id).length;
+    const unlinkedCount = products.filter(p => !p.tag_id).length;
+
+    return (
+        <Layout>
+            <div className="animate-fade">
+                <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+                    <div>
+                        <h1 style={{ fontSize: '1.85rem', fontWeight: 800, letterSpacing: '-0.5px' }}>Product Catalog</h1>
+                        <p style={{ color: 'var(--text-muted)' }}>Manage your inventory items and stock levels</p>
+                    </div>
+                    {!isRestricted && (
+                        <button className="btn btn-primary" onClick={() => setShowAddModal(true)}>
+                            <Plus size={18} style={{ marginRight: '8px' }} /> Add New Product
+                        </button>
+                    )}
+                </header>
+
+                {/* STATUS MESSAGES */}
+                {saveSuccess && (
+                    <div style={{
+                        padding: '1rem 1.5rem', background: '#f0fdf4', color: '#16a34a',
+                        borderRadius: '16px', border: '1px solid #bbf7d0', marginBottom: '1.5rem',
+                        display: 'flex', alignItems: 'center', gap: '10px', animation: 'slideDown 0.3s ease'
+                    }}>
+                        <CheckCircle2 size={18} />
+                        <span style={{ flex: 1, fontWeight: 600, fontSize: '0.9rem' }}>{saveSuccess}</span>
+                        <button onClick={() => setSaveSuccess(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#16a34a' }}>
+                            <X size={16} />
+                        </button>
+                    </div>
+                )}
+                {saveError && (
+                    <div style={{
+                        padding: '1rem 1.5rem', background: '#fef2f2', color: '#dc2626',
+                        borderRadius: '16px', border: '1px solid #fee2e2', marginBottom: '1.5rem',
+                        display: 'flex', alignItems: 'center', gap: '10px'
+                    }}>
+                        <AlertCircle size={18} />
+                        <span style={{ flex: 1, fontWeight: 600, fontSize: '0.9rem' }}>{saveError}</span>
+                        <button onClick={() => setSaveError(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626' }}>
+                            <X size={16} />
+                        </button>
+                    </div>
+                )}
+
+                {/* NFC STATS BAR */}
+                <div style={{
+                    display: 'flex', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap'
+                }}>
+                    <div style={{
+                        display: 'flex', alignItems: 'center', gap: '8px',
+                        padding: '10px 18px', borderRadius: '14px',
+                        background: 'linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%)',
+                        border: '1px solid #c7d2fe', fontSize: '0.8rem', fontWeight: 700
+                    }}>
+                        <Database size={14} style={{ color: 'var(--primary)' }} />
+                        <span style={{ color: 'var(--primary)' }}>{products.length} Products in MySQL</span>
+                    </div>
+                    <div style={{
+                        display: 'flex', alignItems: 'center', gap: '8px',
+                        padding: '10px 18px', borderRadius: '14px',
+                        background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)',
+                        border: '1px solid #bbf7d0', fontSize: '0.8rem', fontWeight: 700
+                    }}>
+                        <Wifi size={14} style={{ color: '#16a34a' }} />
+                        <span style={{ color: '#16a34a' }}>{nfcLinkedCount} NFC Tagged</span>
+                    </div>
+                    {unlinkedCount > 0 && (
+                        <div style={{
+                            display: 'flex', alignItems: 'center', gap: '8px',
+                            padding: '10px 18px', borderRadius: '14px',
+                            background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',
+                            border: '1px solid #fcd34d', fontSize: '0.8rem', fontWeight: 700
+                        }}>
+                            <WifiOff size={14} style={{ color: '#d97706' }} />
+                            <span style={{ color: '#d97706' }}>{unlinkedCount} Awaiting NFC Link</span>
+                        </div>
+                    )}
+                </div>
+
+                <div className="table-container">
+                    <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', gap: '1rem', background: '#f8fafc' }}>
+                        <div style={{ position: 'relative', flex: 1 }}>
+                            <Search size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                            <input
+                                type="text"
+                                placeholder="Search by name or SKU..."
+                                style={{ width: '100%', paddingLeft: '40px' }}
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                            />
+                        </div>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Product</th>
+                                <th>Category</th>
+                                <th>Stock Level</th>
+                                <th>Price</th>
+                                <th>NFC Status</th>
+                                {!isRestricted && <th>Actions</th>}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {loading ? (
+                                <tr><td colSpan={6} style={{ textAlign: 'center', padding: '3rem' }}>Loading catalog...</td></tr>
+                            ) : filteredProducts.length === 0 ? (
+                                <tr>
+                                    <td colSpan={6} style={{ textAlign: 'center', padding: '4rem' }}>
+                                        <Package size={48} style={{ margin: '0 auto 1rem', opacity: 0.2 }} />
+                                        <p style={{ color: 'var(--text-muted)' }}>No products match your search</p>
+                                    </td>
+                                </tr>
+                            ) : filteredProducts.map((product) => (
+                                <tr key={product.id}>
+                                    <td>
+                                        <div style={{ fontWeight: 700 }}>{product.name}</div>
+                                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{product.sku}</div>
+                                    </td>
+                                    <td><span style={{ fontSize: '0.875rem' }}>{product.category}</span></td>
+                                    <td>
+                                        <span className={`badge ${product.stock < 10 ? 'badge-danger' : 'badge-success'}`}>
+                                            {product.stock} units
+                                        </span>
+                                    </td>
+                                    <td style={{ fontWeight: 700, color: 'var(--primary)' }}>₹{product.price.toLocaleString('en-IN')}</td>
+                                    <td>
+                                        {product.tag_id ? (
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                <div style={{
+                                                    width: '8px', height: '8px', borderRadius: '50%',
+                                                    background: '#16a34a', boxShadow: '0 0 6px rgba(22, 163, 74, 0.4)'
+                                                }}></div>
+                                                <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#16a34a' }}>
+                                                    Linked
+                                                </span>
+                                                <span style={{
+                                                    fontSize: '0.6rem', fontFamily: 'monospace',
+                                                    background: '#f0fdf4', padding: '2px 6px',
+                                                    borderRadius: '4px', color: '#15803d'
+                                                }}>
+                                                    {product.tag_id.length > 12 ? product.tag_id.substring(0, 12) + '…' : product.tag_id}
+                                                </span>
+                                            </div>
+                                        ) : (
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                <div style={{
+                                                    width: '8px', height: '8px', borderRadius: '50%',
+                                                    background: '#d97706'
+                                                }}></div>
+                                                <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#d97706' }}>
+                                                    No Tag
+                                                </span>
+                                            </div>
+                                        )}
+                                    </td>
+                                    {!isRestricted && (
+                                        <td>
+                                            <div style={{ display: 'flex', gap: '8px' }}>
+                                                <button className="btn" style={{ padding: '6px', background: '#f1f5f9' }} onClick={() => setEditingProduct(product)}>
+                                                    <Edit2 size={14} />
+                                                </button>
+                                                <button className="btn" style={{ padding: '6px', background: '#fee2e2', color: '#dc2626' }} onClick={() => handleDelete(product.id)}>
+                                                    <Trash2 size={14} />
+                                                </button>
+                                            </div>
+                                        </td>
+                                    )}
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            {/* Add Modal */}
+            {showAddModal && (
+                <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+                    <div className="modal-content animate-slide" style={{ background: 'white', padding: '2.5rem', borderRadius: '32px', width: '100%', maxWidth: '520px', boxShadow: 'var(--shadow-lg)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                            <h2 style={{ fontSize: '1.5rem', fontWeight: 800 }}>Create Product</h2>
+                            <button onClick={() => setShowAddModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+                                <X size={20} style={{ color: '#94a3b8' }} />
+                            </button>
+                        </div>
+
+                        {/* Flow Diagram */}
+                        <div style={{
+                            padding: '12px 16px', background: 'linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%)',
+                            borderRadius: '14px', marginBottom: '1.5rem', border: '1px solid #c7d2fe',
+                            fontSize: '0.75rem', color: '#4f46e5', fontWeight: 600,
+                            display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center'
+                        }}>
+                            <span>📝 Form</span>
+                            <span>→</span>
+                            <span>🔌 API</span>
+                            <span>→</span>
+                            <span>🗄️ MySQL</span>
+                            <span>→</span>
+                            <span>📡 NFC Ready</span>
+                        </div>
+
+                        <form onSubmit={handleAddProduct}>
+                            <div className="input-group">
+                                <label style={{ fontWeight: 700, fontSize: '0.85rem' }}>Product Name *</label>
+                                <input name="name" type="text" placeholder="e.g. iPhone 15 Pro" required
+                                    style={{ padding: '12px 14px', borderRadius: '12px', border: '1px solid var(--border)', width: '100%' }}
+                                />
+                            </div>
+                            <div className="input-group">
+                                <label style={{ fontWeight: 700, fontSize: '0.85rem' }}>SKU *</label>
+                                <input name="sku" type="text" placeholder="e.g. IP15-PRO-BLK" required
+                                    style={{ padding: '12px 14px', borderRadius: '12px', border: '1px solid var(--border)', width: '100%' }}
+                                />
+                            </div>
+                            <div className="input-group">
+                                <label style={{ fontWeight: 700, fontSize: '0.85rem' }}>Category *</label>
+                                <input name="category" type="text" placeholder="e.g. Electronics" required
+                                    style={{ padding: '12px 14px', borderRadius: '12px', border: '1px solid var(--border)', width: '100%' }}
+                                />
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                <div className="input-group">
+                                    <label style={{ fontWeight: 700, fontSize: '0.85rem' }}>Initial Stock *</label>
+                                    <input name="stock" type="number" defaultValue="0" min="0" required
+                                        style={{ padding: '12px 14px', borderRadius: '12px', border: '1px solid var(--border)', width: '100%' }}
+                                    />
+                                </div>
+                                <div className="input-group">
+                                    <label style={{ fontWeight: 700, fontSize: '0.85rem' }}>Price (₹) *</label>
+                                    <input name="price" type="number" step="0.01" defaultValue="0" min="0" required
+                                        style={{ padding: '12px 14px', borderRadius: '12px', border: '1px solid var(--border)', width: '100%' }}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* NFC Tag ID Field */}
+                            <div className="input-group" style={{ marginTop: '0.5rem' }}>
+                                <label style={{ fontWeight: 700, fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <Wifi size={14} style={{ color: 'var(--primary)' }} />
+                                    NFC Tag ID
+                                    <span style={{ fontWeight: 400, fontSize: '0.7rem', color: 'var(--text-muted)' }}>(optional — can link later from Scan page)</span>
+                                </label>
+                                <input name="tag_id" type="text" placeholder="e.g. 2190962515 or leave blank"
+                                    style={{
+                                        padding: '12px 14px', borderRadius: '12px', width: '100%',
+                                        border: '2px dashed #c7d2fe', background: '#f8faff',
+                                        fontFamily: 'monospace', fontSize: '0.95rem'
+                                    }}
+                                />
+                                <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '6px' }}>
+                                    💡 If you have the NFC tag ID, enter it now to link instantly. Otherwise, you can scan the tag later on the Scan page and link it to this product.
+                                </p>
+                            </div>
+
+                            <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
+                                <button type="button" className="btn" style={{ flex: 1, background: '#f1f5f9', padding: '14px' }} onClick={() => setShowAddModal(false)}>Cancel</button>
+                                <button type="submit" className="btn btn-primary" style={{ flex: 1, padding: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }} disabled={savingProduct}>
+                                    {savingProduct ? (
+                                        <>
+                                            <Database size={16} style={{ animation: 'pulse 1s infinite' }} />
+                                            Saving to MySQL...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Database size={16} />
+                                            Save to Database
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Edit Modal */}
+            {editingProduct && (
+                <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+                    <div className="modal-content animate-slide" style={{ background: 'white', padding: '2.5rem', borderRadius: '32px', width: '100%', maxWidth: '520px', boxShadow: 'var(--shadow-lg)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                            <h2 style={{ fontSize: '1.5rem', fontWeight: 800 }}>Edit Product</h2>
+                            <button onClick={() => setEditingProduct(null)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+                                <X size={20} style={{ color: '#94a3b8' }} />
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleUpdateProduct}>
+                            <div className="input-group">
+                                <label style={{ fontWeight: 700, fontSize: '0.85rem' }}>Product Name</label>
+                                <input name="name" type="text" defaultValue={editingProduct.name} required
+                                    style={{ padding: '12px 14px', borderRadius: '12px', border: '1px solid var(--border)', width: '100%' }}
+                                />
+                            </div>
+                            <div className="input-group">
+                                <label style={{ fontWeight: 700, fontSize: '0.85rem' }}>Category</label>
+                                <input name="category" type="text" defaultValue={editingProduct.category} required
+                                    style={{ padding: '12px 14px', borderRadius: '12px', border: '1px solid var(--border)', width: '100%' }}
+                                />
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                <div className="input-group">
+                                    <label style={{ fontWeight: 700, fontSize: '0.85rem' }}>Current Stock</label>
+                                    <input name="stock" type="number" defaultValue={editingProduct.stock} min="0" required
+                                        style={{ padding: '12px 14px', borderRadius: '12px', border: '1px solid var(--border)', width: '100%' }}
+                                    />
+                                </div>
+                                <div className="input-group">
+                                    <label style={{ fontWeight: 700, fontSize: '0.85rem' }}>Price (₹)</label>
+                                    <input name="price" type="number" step="0.01" defaultValue={editingProduct.price} min="0" required
+                                        style={{ padding: '12px 14px', borderRadius: '12px', border: '1px solid var(--border)', width: '100%' }}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* NFC Tag ID Field */}
+                            <div className="input-group" style={{ marginTop: '0.5rem' }}>
+                                <label style={{ fontWeight: 700, fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <Wifi size={14} style={{ color: 'var(--primary)' }} />
+                                    NFC Tag ID
+                                </label>
+                                <input name="tag_id" type="text" defaultValue={editingProduct.tag_id || ''}
+                                    placeholder="Enter NFC Tag ID or leave blank"
+                                    style={{
+                                        padding: '12px 14px', borderRadius: '12px', width: '100%',
+                                        border: editingProduct.tag_id ? '2px solid #16a34a' : '2px dashed #c7d2fe',
+                                        background: editingProduct.tag_id ? '#f0fdf4' : '#f8faff',
+                                        fontFamily: 'monospace', fontSize: '0.95rem'
+                                    }}
+                                />
+                                {editingProduct.tag_id && (
+                                    <p style={{ fontSize: '0.7rem', color: '#16a34a', marginTop: '6px', fontWeight: 600 }}>
+                                        ✅ This product is currently linked to NFC tag: {editingProduct.tag_id}
+                                    </p>
+                                )}
+                            </div>
+
+                            <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
+                                <button type="button" className="btn" style={{ flex: 1, background: '#f1f5f9', padding: '14px' }} onClick={() => setEditingProduct(null)}>Cancel</button>
+                                <button type="submit" className="btn btn-primary" style={{ flex: 1, padding: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }} disabled={savingProduct}>
+                                    {savingProduct ? 'Updating MySQL...' : <>
+                                        <Database size={16} /> Update Product
+                                    </>}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            <style>{`
+                @keyframes slideDown {
+                    from { opacity: 0; transform: translateY(-10px); }
+                    to { opacity: 1; transform: translateY(0); }
+                }
+            `}</style>
+        </Layout>
+    );
+};
+
+export default Products;
