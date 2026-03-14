@@ -11,9 +11,8 @@ const Users: React.FC = () => {
     const fetchUsers = async () => {
         try {
             setLoading(true);
-            const token = localStorage.getItem('token');
-            if (!token) return;
-            const data = await getUsers(token);
+            if (!localStorage.getItem('token')) return;
+            const data = await getUsers();
             setUsers(data);
         } catch (err) {
             console.error("Failed to fetch users", err);
@@ -32,8 +31,7 @@ const Users: React.FC = () => {
         if (!window.confirm(`Are you sure you want to ${action} ${user.name}?`)) return;
 
         try {
-            const token = localStorage.getItem('token');
-            await updateUser(token, user.id, { is_active: newStatus });
+            await updateUser(user.id, { is_active: newStatus });
             fetchUsers();
         } catch (err) {
             alert("Failed to update user status");
@@ -44,8 +42,7 @@ const Users: React.FC = () => {
         if (!window.confirm(`Are you sure you want to PERMANENTLY delete user ${user.name}? This cannot be undone.`)) return;
 
         try {
-            const token = localStorage.getItem('token');
-            await deleteUser(token, user.id);
+            await deleteUser(user.id);
             alert("User deleted successfully");
             fetchUsers();
         } catch (err: any) {
@@ -55,8 +52,7 @@ const Users: React.FC = () => {
 
     const handleRoleChange = async (user: any, newRole: string) => {
         try {
-            const token = localStorage.getItem('token');
-            await updateUser(token, user.id, { role: newRole });
+            await updateUser(user.id, { role: newRole });
             fetchUsers();
         } catch (err) {
             alert("Failed to update user role");

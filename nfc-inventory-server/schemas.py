@@ -18,6 +18,9 @@ class UserLogin(BaseModel):
 class GoogleLoginRequest(BaseModel):
     token: str
 
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
 class UserUpdate(BaseModel):
     name: Optional[str] = None
     role: Optional[str] = None

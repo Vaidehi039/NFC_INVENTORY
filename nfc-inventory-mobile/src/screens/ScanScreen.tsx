@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
     View,
     Text,
@@ -12,8 +13,8 @@ import {
     Platform
 } from 'react-native';
 import { theme } from '../styles/theme';
-import { getProductByTag, storeNfcScan, productTransaction, updateProduct, deleteProduct, quickScan, createProduct } from '../api';
-import { Nfc, CheckCircle2, AlertCircle, Database, Package, ArrowUp, ArrowDown, Search, Wifi, Edit3, Trash2, Save, PlusCircle } from 'lucide-react-native';
+import { getProductByTag, storeNfcScan, productTransaction, updateProduct, deleteProduct, quickScan, createProduct, getDashboardStats } from '../api';
+import { Nfc, CheckCircle2, AlertCircle, Database, Package, ArrowUp, ArrowDown, Search, Wifi, Edit3, Trash2, Save, PlusCircle, ArrowLeft } from 'lucide-react-native';
 
 let NfcManager: any = null;
 let NfcEvents: any = null;
@@ -31,8 +32,9 @@ if (Platform.OS !== 'web') {
     }
 }
 
-const ScanScreen = () => {
+const ScanScreen = ({ navigation }: any) => {
     const [isScanning, setIsScanning] = useState(false);
+    const [recentScans, setRecentScans] = useState<any[]>([]);
     const [isSaving, setIsSaving] = useState(false);
     const [scannedProduct, setScannedProduct] = useState<any>(null);
     const [error, setError] = useState<string | null>(null);
@@ -66,8 +68,14 @@ const ScanScreen = () => {
 
         const initNfc = async () => {
             try {
-                await NfcManager.start();
-                setNfcInitialized(true);
+                // First check if NFC is actually supported by the hardware
+                const supported = await NfcManager.isSupported();
+                if (supported) {
+                    await NfcManager.start();
+                    setNfcInitialized(true);
+                } else {
+                    setNfcInitialized(false);
+                }
             } catch (ex) {
                 console.warn('NFC init failed:', ex);
                 setNfcInitialized(false);
@@ -80,6 +88,21 @@ const ScanScreen = () => {
             stopNfcScan();
         };
     }, []);
+
+    const fetchLiveScans = async () => {
+        try {
+            const data = await getDashboardStats();
+            setRecentScans(data?.scans || []);
+        } catch (e) {}
+    };
+
+    useFocusEffect(
+        useCallback(() => {
+            fetchLiveScans();
+            const interval = setInterval(fetchLiveScans, 5000);
+            return () => clearInterval(interval);
+        }, [])
+    );
 
     const startNfcScan = async () => {
         if (!nfcAvailable || !nfcInitialized) {
@@ -185,6 +208,7 @@ const ScanScreen = () => {
                 setEditPrice(data.price.toString());
                 setSuccessMsg(`Scan Successful! Remaining: ${data.remaining_stock}`);
                 setIsEditing(false);
+                fetchLiveScans();
             }
         } catch (err: any) {
             console.error('Process tag error:', err);
@@ -192,10 +216,32 @@ const ScanScreen = () => {
             const detail = err?.response?.data?.detail || err.message || 'Could not reach server.';
 
             if (status === 404) {
-                // If product not found, offer to add it
-                setLastScannedTag(trimmedId);
-                setError("Tag recognized, but no product linked yet.");
-                setIsAddingNew(true);
+                // If it's the demo simulation tag, just auto-create a mock product
+                if (trimmedId === '2190962515') {
+                    try {
+                        setIsSaving(true);
+                        const demoProduct = await createProduct({
+                            name: "Demo Item",
+                            sku: "DEMO-" + Math.floor(Math.random() * 1000),
+                            category: "Simulation",
+                            price: 99.99,
+                            stock: 10,
+                            tag_id: '2190962515'
+                        });
+                        setScannedProduct(demoProduct);
+                        setSuccessMsg("Demo product automatically created!");
+                        fetchLiveScans();
+                    } catch (e) {
+                        setError("Failed to auto-create demo product.");
+                    } finally {
+                        setIsSaving(false);
+                    }
+                } else {
+                    // If product not found, offer to add it
+                    setLastScannedTag(trimmedId);
+                    setError("Tag recognized, but no product linked yet.");
+                    setIsAddingNew(true);
+                }
             } else {
                 setError(detail);
             }
@@ -212,6 +258,7 @@ const ScanScreen = () => {
             const newStock = result?.product?.new_stock ?? result?.new_stock;
             setScannedProduct({ ...scannedProduct, stock: newStock ?? scannedProduct.stock });
             setSuccessMsg(`Stock ${action} successful!`);
+            fetchLiveScans();
         } catch (err: any) {
             setError(err?.response?.data?.detail || 'Transaction failed.');
         } finally {
@@ -362,41 +409,52 @@ const ScanScreen = () => {
                             <TouchableOpacity onPress={() => setQuantity(quantity + 1)} style={styles.qtyBtn}><Text style={styles.qtyBtnText}>+</Text></TouchableOpacity>
                         </View>
                         <View style={styles.btnRow}>
-                            <TouchableOpacity style={[styles.actionBtn, { backgroundColor: theme.colors.accent }]} onPress={() => handleTransaction('IN')} disabled={isTransacting === true}>
-                                {isTransacting === true ? <ActivityIndicator color="white" size="small" /> : <><ArrowUp color="white" size={18} /><Text style={styles.btnText}>IN</Text></>}
+                            <TouchableOpacity style={[styles.actionBtn, { backgroundColor: theme.colors.accent }]} onPress={() => handleTransaction('IN')} disabled={!!isTransacting}>
+                                {isTransacting ? <ActivityIndicator color="white" size="small" animating={true} /> : <><ArrowUp color="white" size={18} /><Text style={styles.btnText}>IN</Text></>}
                             </TouchableOpacity>
-                            <TouchableOpacity style={[styles.actionBtn, { backgroundColor: theme.colors.danger }]} onPress={() => handleTransaction('OUT')} disabled={isTransacting === true}>
-                                {isTransacting === true ? <ActivityIndicator color="white" size="small" /> : <><ArrowDown color="white" size={18} /><Text style={styles.btnText}>OUT</Text></>}
+                            <TouchableOpacity style={[styles.actionBtn, { backgroundColor: theme.colors.danger }]} onPress={() => handleTransaction('OUT')} disabled={!!isTransacting}>
+                                {isTransacting ? <ActivityIndicator color="white" size="small" animating={true} /> : <><ArrowDown color="white" size={18} /><Text style={styles.btnText}>OUT</Text></>}
                             </TouchableOpacity>
                         </View>
                     </View>
                     <TouchableOpacity style={styles.resetBtn} onPress={() => { setScannedProduct(null); setSuccessMsg(null); setError(null); }}><Text style={styles.resetBtnText}>Next Item</Text></TouchableOpacity>
+                    <TouchableOpacity style={styles.dashboardBtn} onPress={() => navigation.navigate('Dashboard')}>
+                        <ArrowLeft color={theme.colors.textMuted} size={18} />
+                        <Text style={styles.dashboardBtnText}>Back to Dashboard</Text>
+                    </TouchableOpacity>
                 </View>
             ) : (
                 <>
                     <Text style={styles.title}>NFC Gateway</Text>
                     <View style={styles.scanArea}>
-                        <TouchableOpacity style={[styles.pulse, (isScanning === true) ? styles.pulseActive : {}]} onPress={isScanning === true ? stopNfcScan : startNfcScan} activeOpacity={0.8}>
-                            <Nfc color="white" size={48} />
-                            <Text style={styles.scanBtnText}>{isScanning === true ? 'Stop' : 'Scan NFC'}</Text>
-                        </TouchableOpacity>
+                        {!nfcAvailable || !nfcInitialized || Platform.OS === 'web' ? (
+                            <View style={[styles.pulse, { backgroundColor: theme.colors.textMuted }]}>
+                                <Nfc color="white" size={48} />
+                                <Text style={[styles.scanBtnText, { textAlign: 'center' }]}>Not Available{'\n'}in Expo Go</Text>
+                            </View>
+                        ) : (
+                            <TouchableOpacity style={[styles.pulse, isScanning ? styles.pulseActive : {}]} onPress={isScanning ? stopNfcScan : startNfcScan} activeOpacity={0.8}>
+                                <Nfc color="white" size={48} />
+                                <Text style={styles.scanBtnText}>{isScanning ? 'Stop' : 'Scan NFC'}</Text>
+                            </TouchableOpacity>
+                        )}
                     </View>
 
                     {!nfcAvailable || !nfcInitialized || Platform.OS === 'web' ? (
-                        <TouchableOpacity style={styles.simulateBtn} onPress={simulateScan} disabled={isScanning === true || isSaving === true}>
+                        <TouchableOpacity style={styles.simulateBtn} onPress={simulateScan} disabled={!!isScanning || !!isSaving}>
                             <Wifi color="white" size={18} /><Text style={styles.simulateBtnText}>Simulate Scan</Text>
                         </TouchableOpacity>
                     ) : null}
 
-                    {isScanning === true ? <View style={styles.scanningStatus}><ActivityIndicator color={theme.colors.primary} /><Text style={styles.scanningText}>Scanning...</Text></View> : null}
-                    {isSaving === true ? <View style={styles.savingOverlay}><ActivityIndicator color={theme.colors.primary} /><Text style={styles.savingText}>Processing...</Text></View> : null}
+                    {isScanning ? <View style={styles.scanningStatus}><ActivityIndicator color={theme.colors.primary} animating={true} /><Text style={styles.scanningText}>Scanning...</Text></View> : null}
+                    {isSaving ? <View style={styles.savingOverlay}><ActivityIndicator color={theme.colors.primary} animating={true} /><Text style={styles.savingText}>Processing...</Text></View> : null}
 
                     <View style={styles.manualEntry}>
                         <Text style={styles.manualTitle}>Manual Gateway</Text>
                         <View style={styles.manualInputRow}>
                             <TextInput style={styles.manualInput} placeholder="Tag ID" value={manualTagInput} onChangeText={setManualTagInput} />
-                            <TouchableOpacity style={[styles.manualBtn, ((!manualTagInput.trim()) || (isSaving === true)) ? styles.manualBtnDisabled : {}]} onPress={() => processTag(manualTagInput, 'mobile_manual')} disabled={!manualTagInput.trim() || isSaving === true}>
-                                {isSaving === true ? <ActivityIndicator color="white" /> : <Search color="white" size={20} />}
+                            <TouchableOpacity style={[styles.manualBtn, ((!manualTagInput.trim()) || (!!isSaving)) ? styles.manualBtnDisabled : {}]} onPress={() => processTag(manualTagInput, 'mobile_manual')} disabled={!manualTagInput.trim() || !!isSaving}>
+                                {isSaving ? <ActivityIndicator color="white" animating={true} /> : <Search color="white" size={20} />}
                             </TouchableOpacity>
                         </View>
                     </View>
@@ -434,8 +492,38 @@ const ScanScreen = () => {
                             </TouchableOpacity>
                         </View>
                     )}
+                    
+                    <TouchableOpacity style={[styles.dashboardBtn, {marginTop: 20}]} onPress={() => navigation.navigate('Dashboard')}>
+                        <ArrowLeft color={theme.colors.textMuted} size={18} />
+                        <Text style={styles.dashboardBtnText}>Back to Dashboard</Text>
+                    </TouchableOpacity>
                 </>
             )}
+            
+            <View style={styles.feedContainer}>
+                <View style={styles.feedHeader}>
+                    <Text style={styles.feedTitle}>Live Scan Feed</Text>
+                    <Text style={styles.realTime}>REAL-TIME</Text>
+                </View>
+                {recentScans.length === 0 && (
+                    <Text style={{ textAlign: 'center', color: '#94a3b8', marginTop: 10 }}>No scans found yet.</Text>
+                )}
+                {recentScans.slice(0, 5).map((scan, index) => {
+                    const timeStr = scan.created_at ? new Date(scan.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+                    return (
+                        <View key={index} style={styles.scanItem}>
+                            <View style={styles.scanItemIcon}>
+                                <Search size={20} color='white' />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                                <Text style={styles.scanItemTitle}>{scan.product?.name || 'Unknown Tag'}</Text>
+                                <Text style={styles.scanItemSub}>ID: {scan.serial_number}</Text>
+                            </View>
+                            <Text style={styles.scanTime}>{timeStr}</Text>
+                        </View>
+                    );
+                })}
+            </View>
         </ScrollView>
     );
 };
@@ -478,8 +566,19 @@ const styles = StyleSheet.create({
     btnRow: { flexDirection: 'row', gap: 12 },
     actionBtn: { flex: 1, height: 50, borderRadius: 12, justifyContent: 'center', alignItems: 'center', flexDirection: 'row', gap: 8 },
     btnText: { color: 'white', fontWeight: '800' },
-    resetBtn: { marginTop: 24, alignItems: 'center' },
-    resetBtnText: { color: theme.colors.textMuted, fontWeight: '600' },
+    resetBtn: { marginTop: 24, padding: 10, alignItems: 'center' },
+    resetBtnText: { color: theme.colors.primary, fontWeight: '700', fontSize: 16 },
+    dashboardBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 10, gap: 5, padding: 10 },
+    dashboardBtnText: { color: theme.colors.textMuted, fontWeight: '600', fontSize: 14 },
+    feedContainer: { width: '100%', marginTop: 30, paddingBottom: 20 },
+    feedHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 15 },
+    feedTitle: { fontSize: 18, fontWeight: '700' },
+    realTime: { color: theme.colors.primary, fontWeight: '700', fontSize: 12 },
+    scanItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'white', padding: 15, borderRadius: 12, marginBottom: 10, borderWidth: 1, borderColor: theme.colors.border },
+    scanItemIcon: { width: 36, height: 36, borderRadius: 10, backgroundColor: theme.colors.primary, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+    scanItemTitle: { fontWeight: '700', fontSize: 14 },
+    scanItemSub: { color: theme.colors.textMuted, fontSize: 12, marginTop: 2 },
+    scanTime: { color: theme.colors.primary, fontWeight: '700', fontSize: 12 },
     editForm: { marginBottom: 20 },
     editLabel: { fontSize: 12, fontWeight: '700', marginBottom: 4 },
     editInput: { backgroundColor: '#f8fafc', borderWidth: 1, borderColor: theme.colors.border, borderRadius: 10, padding: 10, marginBottom: 12 },

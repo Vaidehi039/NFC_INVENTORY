@@ -38,10 +38,16 @@ This project is built to be "Network Ready". When you run `start_project.bat`, i
 2. Updates `nfc-inventory-mobile\src\api.ts` so your phone can connect.
 3. Updates `nfc-inventory-web\vite.config.ts` for the web proxy.
 
-**To use your phone:**
-1. Ensure your phone and computer are on the **same Wi-Fi**.
-2. Run `start_project.bat`.
-3. Scan the QR code shown in the **Nfc Mobile Gateway** terminal.
+### 🌍 Global Access (Using Ngrok / Tunnel)
+If you want to run the project from **any network** (e.g., mobile data or a different Wi-Fi), use a tunnel like **ngrok**:
+
+1. **Start Ngrok**: Run `ngrok http 3000` in a new terminal.
+2. **Get Public URL**: Copy the forwarding URL (e.g., `https://abc-123.ngrok-free.app`).
+3. **Configure Project**: Run the following in your root folder:
+   ```powershell
+   powershell -File update_config.ps1 -PublicUrl https://your-url.ngrok-free.app
+   ```
+4. **Run**: Start the project normally using `start_project.bat`.
 
 ---
 **💡 Pro Tip**: If you see a "Module Not Found" error, just run `pip install pymysql fastapi uvicorn sqlalchemy` again in the server folder.

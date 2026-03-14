@@ -2,11 +2,11 @@ import React, { useState, useEffect } from 'react';
 import Layout from '../components/Layout';
 import { getDashboardStats, getNfcScans } from '../api';
 import {
-    Package, AlertTriangle, TrendingUp, TrendingDown, Clock, Search,
-    Smartphone, Database, CheckCircle, Wifi, Activity, History,
-    ScanLine, MousePointer2, User
+    Package, AlertTriangle, TrendingUp, Clock,
+    Smartphone, Database, Wifi, Activity, History,
+    MousePointer2, User
 } from 'lucide-react';
-import { Bar, Doughnut } from 'react-chartjs-2';
+import { Bar } from 'react-chartjs-2';
 import {
     Chart as ChartJS,
     CategoryScale,
@@ -37,16 +37,13 @@ const Dashboard: React.FC = () => {
     const fetchData = async () => {
         try {
             setLoading(true);
-            const token = localStorage.getItem('token');
-            if (token) {
-                const data = await getDashboardStats(token);
-                setStats(data.stats);
-                setRecentActivity(data.recentActivity || []);
+            const data = await getDashboardStats();
+            setStats(data.stats);
+            setRecentActivity(data.recentActivity || []);
 
-                // Fetch recent raw NFC scans for the new widget
-                const scans = await getNfcScans(token);
-                setRecentScans(scans.slice(0, 6)); // Top 6 most recent
-            }
+            // Fetch recent raw NFC scans for the new widget
+            const scans = await getNfcScans();
+            setRecentScans(scans.slice(0, 6)); // Top 6 most recent
         } catch (err) {
             console.error("Dashboard error:", err);
         } finally {
@@ -75,14 +72,6 @@ const Dashboard: React.FC = () => {
         }]
     };
 
-    const categoryData = {
-        labels: ['Mobile', 'Laptop', 'Tablets', 'Audio'],
-        datasets: [{
-            data: [40, 25, 20, 15],
-            backgroundColor: ['#6366f1', '#10b981', '#f59e0b', '#ef4444'],
-            borderWidth: 0,
-        }]
-    };
 
     return (
         <Layout>
@@ -230,7 +219,7 @@ const Dashboard: React.FC = () => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {recentActivity.slice(0, 8).map((log: any, i: number) => (
+                                {recentActivity.slice(0, 8).map((log: any) => (
                                     <tr key={log.id}>
                                         <td>
                                             <div style={{ fontWeight: 600 }}>{log.product?.name || 'Unknown'}</div>

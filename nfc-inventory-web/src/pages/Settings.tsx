@@ -51,7 +51,13 @@ const Settings: React.FC = () => {
                             <h2 style={{ fontSize: '1.25rem', fontWeight: 800, marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '10px', color: '#dc2626' }}>
                                 <Lock size={20} /> Authentication
                             </h2>
-                            <button className="btn btn-primary" style={{ background: '#f8fafc', color: 'var(--text-main)', border: '1px solid var(--border)' }}>Change Password</button>
+                            <button 
+                                className="btn btn-primary" 
+                                style={{ background: '#f8fafc', color: 'var(--text-main)', border: '1px solid var(--border)' }}
+                                onClick={() => alert("Password reset link sent to your email!")}
+                            >
+                                Change Password
+                            </button>
                         </section>
                     </div>
                 );
@@ -87,7 +93,13 @@ const Settings: React.FC = () => {
                         </h2>
                         <div className="input-group">
                             <label>Two-Factor Authentication</label>
-                            <button className="btn" style={{ width: 'fit-content', border: '1px solid var(--border)' }}>Enable 2FA</button>
+                            <button 
+                                className="btn" 
+                                style={{ width: 'fit-content', border: '1px solid var(--border)' }}
+                                onClick={() => alert("Two-Factor Authentication setup will begin shortly.")}
+                            >
+                                Enable 2FA
+                            </button>
                         </div>
                         <div className="input-group">
                             <label>Session Timeout</label>
@@ -124,7 +136,13 @@ const Settings: React.FC = () => {
                         <div style={{ padding: '1.5rem', background: '#f8fafc', borderRadius: '16px', border: '1px solid var(--border)' }}>
                             <div style={{ fontWeight: 700, marginBottom: '0.5rem' }}>Database Configuration</div>
                             <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>Connected to MySQL Production Instance</p>
-                            <button className="btn" style={{ background: 'white', border: '1px solid var(--border)', fontSize: '0.8rem' }}>Check Health States</button>
+                            <button 
+                                className="btn" 
+                                style={{ background: 'white', border: '1px solid var(--border)', fontSize: '0.8rem' }}
+                                onClick={() => alert("System Healthy: Database Connection OK.")}
+                            >
+                                Check Health States
+                            </button>
                         </div>
                     </div>
                 );

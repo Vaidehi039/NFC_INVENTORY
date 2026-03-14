@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Layout from '../components/Layout';
 import { getLogs } from '../api';
-import { FileDown, History, Search, ArrowUpCircle, ArrowDownCircle, Settings2, Scan, Link as LinkIcon } from 'lucide-react';
+import { FileDown, History, Search, ArrowUpCircle, ArrowDownCircle, Scan, Link as LinkIcon } from 'lucide-react';
 
 const Logs: React.FC = () => {
     const [logs, setLogs] = useState<any[]>([]);
@@ -13,7 +13,7 @@ const Logs: React.FC = () => {
             setLoading(true);
             const token = localStorage.getItem('token');
             if (!token) return;
-            const data = await getLogs(token);
+            const data = await getLogs();
             setLogs(data);
         } catch (err) {
             console.error("Failed to fetch logs", err);

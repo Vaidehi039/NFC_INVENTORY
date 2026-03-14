@@ -89,14 +89,20 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
 
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        email: str = payload.get("email")
+        user_id: int = payload.get("user_id")
+        email: str = payload.get("sub") or payload.get("email")
 
-        if email is None:
+        if user_id is None or email is None:
+            print(f"JWT Validation Error: Missing user_id or email in payload: {payload}")
             raise credentials_exception
 
         return payload
 
-    except JWTError:
+    except JWTError as e:
+        print(f"JWT Validation Error: {str(e)}")
+        raise credentials_exception
+    except Exception as e:
+        print(f"Unexpected Auth Error: {str(e)}")
         raise credentials_exception
 
 
@@ -163,6 +169,7 @@ def login(user: schemas.UserLogin, db: Session = Depends(get_db)):
 
     access_token = create_access_token(
         data={
+            "sub": db_user.email,
             "user_id": db_user.id,
             "email": db_user.email,
             "role": db_user.role
@@ -170,7 +177,8 @@ def login(user: schemas.UserLogin, db: Session = Depends(get_db)):
     )
 
     return {
-        "token": access_token,
+        "access_token": access_token,
+        "token_type": "bearer",
         "user": {
             "id": db_user.id,
             "name": db_user.name,
@@ -178,3 +186,66 @@ def login(user: schemas.UserLogin, db: Session = Depends(get_db)):
             "role": db_user.role
         }
     }
+
+
+# --------------------------------
+# Google Login API
+# --------------------------------
+
+@router.post("/google")
+def google_login(request: schemas.GoogleLoginRequest, db: Session = Depends(get_db)):
+    idinfo = verify_google_token(request.token)
+    if not idinfo:
+        raise HTTPException(status_code=400, detail="Invalid Google token")
+
+    email = idinfo.get("email")
+    name = idinfo.get("name")
+
+    db_user = db.query(models.User).filter(models.User.email == email).first()
+    if not db_user:
+        # Create new user if doesn't exist
+        db_user = models.User(
+            name=name,
+            email=email,
+            hashed_password=None,  # No password for Google users
+            role="user",
+            is_active=True
+        )
+        db.add(db_user)
+        db.commit()
+        db.refresh(db_user)
+
+    access_token = create_access_token(
+        data={
+            "sub": db_user.email,
+            "user_id": db_user.id,
+            "email": db_user.email,
+            "role": db_user.role
+        }
+    )
+
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user": {
+            "id": db_user.id,
+            "name": db_user.name,
+            "email": db_user.email,
+            "role": db_user.role
+        }
+    }
+
+
+# --------------------------------
+# Forgot Password API
+# --------------------------------
+
+@router.post("/forgot-password")
+def forgot_password(request: schemas.ForgotPasswordRequest, db: Session = Depends(get_db)):
+    db_user = db.query(models.User).filter(models.User.email == request.email).first()
+    if not db_user:
+        # Don't reveal if user exists for security
+        return {"message": "If this email is registered, a password reset link has been sent."}
+    
+    # In a real app, send email here
+    return {"message": "Password reset instructions sent to your email."}

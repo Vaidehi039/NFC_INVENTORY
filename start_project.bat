@@ -23,7 +23,7 @@ start "NFC Web Admin" cmd /k "npm run dev"
 :: 3. Start Mobile Gateway
 echo [3/3] Launching Mobile Expo Gateway (Port 8081)...
 cd ../nfc-inventory-mobile
-start "NFC Mobile Gateway" cmd /k "npx expo start --web"
+start "NFC Mobile Gateway" cmd /k "npx expo start"
 
 echo.
 echo --------------------------------------------------

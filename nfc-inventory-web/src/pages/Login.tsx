@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { Nfc, Eye, EyeOff } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useGoogleLogin } from '@react-oauth/google';
-import { googleLogin } from '../api';
+import { login, googleLogin } from '../api';
 
 const Login: React.FC = () => {
     const [showPassword, setShowPassword] = useState(false);
@@ -15,31 +15,22 @@ const Login: React.FC = () => {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            const { login } = await import('../api');
-            const data = await login(email.trim(), password.trim());
-            localStorage.setItem('token', data.token);
-            localStorage.setItem('user', JSON.stringify(data.user));
-            localStorage.setItem('role', data.user.role);
-            localStorage.setItem('userName', data.user.name);
-            localStorage.setItem('userEmail', data.user.email);
+            // All token storage is now handled centrally in api.ts
+            await login(email.trim(), password.trim());
             navigate('/dashboard');
-        } catch (err) {
-            alert('Login failed: ' + err);
+        } catch (err: any) {
+            alert('Login failed: ' + err.message);
         }
     };
 
     const handleGoogleLogin = useGoogleLogin({
         onSuccess: async (tokenResponse) => {
             try {
-                const data = await googleLogin(tokenResponse.access_token);
-                localStorage.setItem('token', data.token);
-                localStorage.setItem('user', JSON.stringify(data.user));
-                localStorage.setItem('role', data.user.role);
-                localStorage.setItem('userName', data.user.name);
-                localStorage.setItem('userEmail', data.user.email);
+                // All token storage is now handled centrally in api.ts
+                await googleLogin(tokenResponse.access_token);
                 navigate('/dashboard');
-            } catch (err) {
-                alert('Google Login failed: ' + err);
+            } catch (err: any) {
+                alert('Google Login failed: ' + err.message);
             }
         },
         onError: () => {

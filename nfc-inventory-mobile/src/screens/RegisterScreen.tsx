@@ -39,8 +39,16 @@ const RegisterScreen = ({ navigation }: any) => {
             );
         } catch (err: any) {
             console.error('Registration error:', err);
-            const msg = err.response?.data?.detail || 'Failed to create account. Email might already be in use.';
-            setError(msg);
+            
+            if (err.response) {
+                // Server responded with an error (e.g., 400 Bad Request)
+                setError(err.response.data?.detail || 'Failed to create account.');
+            } else if (err.request) {
+                // Network error (Server unreachable)
+                setError('Cannot connect to server. Please check your WiFi or update your Server URL in Login Settings.');
+            } else {
+                setError('Something went wrong. Please try again.');
+            }
         } finally {
             setLoading(false);
         }
@@ -106,11 +114,11 @@ const RegisterScreen = ({ navigation }: any) => {
                 </View>
 
                 <TouchableOpacity
-                    style={[styles.registerBtn, (loading === true) ? { opacity: 0.7 } : {}]}
+                    style={[styles.registerBtn, loading ? { opacity: 0.7 } : { opacity: 1 }]}
                     onPress={handleRegister}
-                    disabled={loading === true}
+                    disabled={!!loading}
                 >
-                    {(loading === true) ? (
+                    {loading ? (
                         <ActivityIndicator animating={true} color="white" size="small" />
                     ) : (
                         <Text style={styles.registerBtnText}>Create Account</Text>

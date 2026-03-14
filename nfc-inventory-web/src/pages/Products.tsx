@@ -20,7 +20,7 @@ const Products: React.FC = () => {
             setLoading(true);
             const token = localStorage.getItem('token');
             if (!token) return;
-            const data = await getProducts(token);
+            const data = await getProducts();
             setProducts(data);
         } catch (err) {
             console.error("Failed to fetch products", err);
@@ -67,8 +67,7 @@ const Products: React.FC = () => {
         try {
             setSavingProduct(true);
             setSaveError(null);
-            const token = localStorage.getItem('token');
-            const result = await addProduct(token, productData);
+            const result = await addProduct(productData);
             setShowAddModal(false);
             setSaveSuccess(`✅ Product "${result.name}" saved to MySQL database! ${tagId ? '(NFC Tag linked: ' + tagId + ')' : '(No NFC tag yet — link one via Scan page)'}`);
             fetchProducts();
@@ -101,8 +100,7 @@ const Products: React.FC = () => {
         try {
             setSavingProduct(true);
             setSaveError(null);
-            const token = localStorage.getItem('token');
-            await updateProduct(token, editingProduct.id, productData);
+            await updateProduct(editingProduct.id, productData);
             setEditingProduct(null);
             setSaveSuccess(`✅ Product "${productData.name}" updated in MySQL!`);
             fetchProducts();
@@ -116,8 +114,7 @@ const Products: React.FC = () => {
     const handleDelete = async (id: number) => {
         if (!window.confirm("Are you sure you want to delete this product?")) return;
         try {
-            const token = localStorage.getItem('token');
-            await deleteProduct(token, id);
+            await deleteProduct(id);
             setSaveSuccess("Product deleted from MySQL database.");
             fetchProducts();
         } catch (err: any) {

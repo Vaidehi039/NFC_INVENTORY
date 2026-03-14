@@ -1,3 +1,7 @@
+param (
+    [string]$PublicUrl = ""
+)
+
 # 1. Detect IPv4 Address
 $allIPs = Get-NetIPAddress -AddressFamily IPv4 | Where-Object { 
     $_.IPAddress -notmatch "^127\." -and 
@@ -22,14 +26,19 @@ if (-not $selectedIP) {
     Write-Output "Detected Local IP: $selectedIP"
 }
 
-$backendUrl = "http://$($selectedIP):3000"
-Write-Output "Target Backend URL: $backendUrl"
+if ($PublicUrl) {
+    $backendUrl = $PublicUrl
+    Write-Output "Using Public/Tunnel URL: $backendUrl"
+} else {
+    $backendUrl = "http://$($selectedIP):8000"
+    Write-Output "Target Backend URL: $backendUrl"
+}
 
 # 2. Update Mobile config
-$mobileFile = "f:\NFC_Inventory\nfc-inventory-mobile\src\api.ts"
+$mobileFile = Join-Path $PSScriptRoot "nfc-inventory-mobile\src\api.ts"
 if (Test-Path $mobileFile) {
     $content = Get-Content $mobileFile -Raw
-    $regex = 'const API_URL = "http://[^"]*";'
+    $regex = 'const API_URL = "http[s]?://[^"]*";'
     $replace = 'const API_URL = "' + $backendUrl + '";'
     $newContent = $content -replace $regex, $replace
     Set-Content -Path $mobileFile -Value $newContent
@@ -37,14 +46,15 @@ if (Test-Path $mobileFile) {
 }
 
 # 3. Update Web config
-$webFile = "f:\NFC_Inventory\nfc-inventory-web\vite.config.ts"
+$webFile = Join-Path $PSScriptRoot "nfc-inventory-web\vite.config.ts"
 if (Test-Path $webFile) {
     $content = Get-Content $webFile -Raw
-    $regex = "target: 'http://[^']*'"
-    $replace = "target: '$backendUrl'"
+    $regex = "target: ['""]http[s]?://[^'#]*['""]"
+    $replace = "target: 'http://127.0.0.1:8000'"
     $newContent = $content -replace $regex, $replace
     Set-Content -Path $webFile -Value $newContent
-    Write-Output "Updated Web Proxy: $webFile"
+    Write-Output "Updated Web Proxy: $webFile (-> 127.0.0.1:8000)"
 }
 
 Write-Output "Network configuration complete."
+
