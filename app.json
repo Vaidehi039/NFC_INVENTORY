@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "519ed4ed-131e-4fa5-b7fe-fa11510a9c2a"
+      }
+    },
+    "android": {
+      "package": "com.nfc_admin.nfc_inventory"
+    }
+  }
+}

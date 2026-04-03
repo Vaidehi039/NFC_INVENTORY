@@ -8,46 +8,67 @@ import {
     Platform,
     ScrollView,
     ActivityIndicator,
-    Alert
+    KeyboardAvoidingView
 } from 'react-native';
 import { Nfc, User, Mail, Lock, AlertCircle } from 'lucide-react-native';
 import { theme } from '../styles/theme';
 import { register } from '../api';
+import Toast, { ToastType } from '../components/Toast';
 
 const RegisterScreen = ({ navigation }: any) => {
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    
+    // Toast state
+    const [toastVisible, setToastVisible] = useState(false);
+    const [toastMessage, setToastMessage] = useState('');
+    const [toastType, setToastType] = useState<ToastType>('info');
+
+    const showToast = (message: string, type: ToastType = 'info') => {
+        setToastMessage(message);
+        setToastType(type);
+        setToastVisible(true);
+    };
 
     const handleRegister = async () => {
         if (!name || !email || !password) {
-            setError('Please fill in all fields');
+            showToast('Please fill in all fields', 'error');
             return;
         }
 
         try {
             setLoading(true);
-            setError(null);
             await register({ name, email, password });
 
-            Alert.alert(
-                "Success",
-                "Account created successfully! You can now sign in.",
-                [{ text: "OK", onPress: () => navigation.navigate('Login') }]
-            );
+            // Requirement: Toast message "Registration successful"
+            showToast('Registration successful', 'success');
+
+            // Wait a moment for the toast to be seen before navigating
+            setTimeout(() => {
+                navigation.navigate('Login');
+            }, 1500);
+
         } catch (err: any) {
             console.error('Registration error:', err);
             
             if (err.response) {
-                // Server responded with an error (e.g., 400 Bad Request)
-                setError(err.response.data?.detail || 'Failed to create account.');
+                // Requirement: Duplicate user → “User already exists”
+                const detail = err.response.data?.detail;
+                if (detail && detail.toLowerCase().includes('already registered')) {
+                    showToast('User already exists', 'error');
+                } else if (err.response.status === 400 || err.response.status === 409) {
+                    showToast('User already exists', 'error');
+                } else {
+                    // Requirement: Registration failed. Please try again
+                    showToast('Registration failed. Please try again', 'error');
+                }
             } else if (err.request) {
-                // Network error (Server unreachable)
-                setError('Cannot connect to server. Please check your WiFi or update your Server URL in Login Settings.');
+                // Requirement: Network error → “Network error. Check your connection”
+                showToast('Network error. Check your connection', 'error');
             } else {
-                setError('Something went wrong. Please try again.');
+                showToast('Registration failed. Please try again', 'error');
             }
         } finally {
             setLoading(false);
@@ -55,21 +76,17 @@ const RegisterScreen = ({ navigation }: any) => {
     };
 
     return (
-        <View style={styles.container}>
-            <ScrollView contentContainerStyle={styles.scrollContent}>
+        <KeyboardAvoidingView 
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={styles.container}
+        >
+            <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
                 <View style={styles.header}>
                     <View style={styles.logoIcon}>
                         <Nfc color="white" size={28} />
                     </View>
                     <Text style={styles.logoText}>Create Account</Text>
                 </View>
-
-                {error ? (
-                    <View style={styles.errorBox}>
-                        <AlertCircle color={theme.colors.danger} size={18} />
-                        <Text style={styles.errorText}>{error}</Text>
-                    </View>
-                ) : null}
 
                 <View style={styles.inputGroup}>
                     <Text style={styles.label}>Full Name</Text>
@@ -80,6 +97,7 @@ const RegisterScreen = ({ navigation }: any) => {
                             placeholder="John Doe"
                             value={name}
                             onChangeText={setName}
+                            placeholderTextColor={theme.colors.textMuted}
                         />
                     </View>
                 </View>
@@ -95,6 +113,7 @@ const RegisterScreen = ({ navigation }: any) => {
                             onChangeText={setEmail}
                             keyboardType="email-address"
                             autoCapitalize="none"
+                            placeholderTextColor={theme.colors.textMuted}
                         />
                     </View>
                 </View>
@@ -109,14 +128,15 @@ const RegisterScreen = ({ navigation }: any) => {
                             secureTextEntry={true}
                             value={password}
                             onChangeText={setPassword}
+                            placeholderTextColor={theme.colors.textMuted}
                         />
                     </View>
                 </View>
 
                 <TouchableOpacity
-                    style={[styles.registerBtn, loading ? { opacity: 0.7 } : { opacity: 1 }]}
+                    style={[styles.registerBtn, loading ? styles.registerBtnDisabled : null]}
                     onPress={handleRegister}
-                    disabled={!!loading}
+                    disabled={loading}
                 >
                     {loading ? (
                         <ActivityIndicator animating={true} color="white" size="small" />
@@ -134,7 +154,14 @@ const RegisterScreen = ({ navigation }: any) => {
                     </Text>
                 </TouchableOpacity>
             </ScrollView>
-        </View>
+
+            <Toast
+                visible={toastVisible}
+                message={toastMessage}
+                type={toastType}
+                onHide={() => setToastVisible(false)}
+            />
+        </KeyboardAvoidingView>
     );
 };
 
@@ -146,12 +173,14 @@ const styles = StyleSheet.create({
     scrollContent: {
         padding: 32,
         justifyContent: 'center',
+        paddingBottom: 80, // Space for toast/avoiding being cut
         minHeight: '100%'
     },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: 40
+        marginBottom: 40,
+        marginTop: 20
     },
     logoIcon: {
         width: 48,
@@ -166,23 +195,6 @@ const styles = StyleSheet.create({
         fontWeight: '800',
         marginLeft: 12,
         color: theme.colors.secondary
-    },
-    errorBox: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: 'rgba(239, 68, 68, 0.1)',
-        padding: 12,
-        borderRadius: 10,
-        marginBottom: 20,
-        borderWidth: 1,
-        borderColor: 'rgba(239, 68, 68, 0.2)',
-    },
-    errorText: {
-        color: theme.colors.danger,
-        fontSize: 14,
-        fontWeight: '600',
-        marginLeft: 8,
-        flex: 1,
     },
     inputGroup: {
         marginBottom: 20
@@ -200,7 +212,12 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: theme.colors.border,
         borderRadius: 10,
-        paddingHorizontal: 12
+        paddingHorizontal: 12,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 2,
+        elevation: 2,
     },
     inputIcon: {
         marginRight: 10
@@ -217,7 +234,15 @@ const styles = StyleSheet.create({
         padding: 18,
         alignItems: 'center',
         marginTop: 20,
-        elevation: 4
+        shadowColor: theme.colors.primary,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 6
+    },
+    registerBtnDisabled: {
+        opacity: 0.7,
+        shadowOpacity: 0.1
     },
     registerBtnText: {
         color: 'white',
@@ -226,7 +251,8 @@ const styles = StyleSheet.create({
     },
     footer: {
         marginTop: 32,
-        alignItems: 'center'
+        alignItems: 'center',
+        marginBottom: 40
     },
     footerText: {
         color: theme.colors.textMuted

@@ -3,6 +3,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { Nfc, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useGoogleLogin } from "@react-oauth/google";
+import toast from "react-hot-toast";
 import { googleLogin } from "../api";
 
 const Register: React.FC = () => {
@@ -19,7 +20,7 @@ const Register: React.FC = () => {
     e.preventDefault();
 
     if (password !== confirm) {
-      alert("Passwords do not match");
+      toast.error("Passwords do not match ❌");
       return;
     }
 
@@ -29,24 +30,37 @@ const Register: React.FC = () => {
       const response = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password, role })
+        body: JSON.stringify({ name, email, password, role }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        alert(data.detail || "Registration failed");
+        // Requirement: Duplicate user → “User already exists”
+        if (response.status === 409 || (data.detail && data.detail.toLowerCase().includes("already registered"))) {
+          toast.error("User already exists");
+        } else {
+          // Requirement: If registration fails, show: “Registration failed. Please try again”
+          toast.error("Registration failed. Please try again");
+        }
         setIsLoading(false);
         return;
       }
 
-      alert("Registration successful!");
-      navigate("/");
-    } catch {
-      alert("Registration failed");
-    }
+      // Requirement: Toast message: “Registration successful”
+      toast.success("Registration successful");
 
-    setIsLoading(false);
+      setIsLoading(false);
+
+      setTimeout(() => {
+        navigate("/login");
+      }, 1500);
+
+    } catch (err: any) {
+      // Requirement: Network error → “Network error. Check your connection”
+      toast.error("Network error. Check your connection");
+      setIsLoading(false);
+    }
   };
 
   const handleGoogleLogin = useGoogleLogin({
@@ -55,16 +69,17 @@ const Register: React.FC = () => {
         const data = await googleLogin(tokenResponse.access_token);
         localStorage.setItem("token", data.token);
         localStorage.setItem("user", JSON.stringify(data.user));
+
+        toast.success("Google Login successful 🎉");
         navigate("/dashboard");
       } catch {
-        alert("Google Login failed");
+        toast.error("Google Login failed ❌");
       }
-    }
+    },
   });
 
   return (
     <div className="register-container">
-      {/* LEFT SIDE */}
       <div className="left-side">
         <div className="left-overlay">
           <h1>Scale Your Operations.</h1>
@@ -86,7 +101,6 @@ const Register: React.FC = () => {
         </div>
       </div>
 
-      {/* RIGHT SIDE */}
       <div className="right-side">
         <motion.div
           initial={{ opacity: 0, y: 40 }}
@@ -106,6 +120,11 @@ const Register: React.FC = () => {
             type="button"
             className="google-btn"
           >
+            <img
+              src="https://www.svgrepo.com/show/475656/google-color.svg"
+              alt="google"
+              width="18"
+            />
             Sign up with Google
           </button>
 
@@ -115,61 +134,33 @@ const Register: React.FC = () => {
 
           <form onSubmit={handleSubmit}>
             <div className="input-group">
-              <input
-                type="text"
-                placeholder=" "
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-              />
+              <input type="text" placeholder=" " value={name} onChange={(e) => setName(e.target.value)} required />
               <label>Full Name</label>
             </div>
 
             <div className="input-group">
-              <input
-                type="email"
-                placeholder=" "
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
+              <input type="email" placeholder=" " value={email} onChange={(e) => setEmail(e.target.value)} required />
               <label>Email Address</label>
             </div>
 
-            <div className="input-group">
-              <select
-                value={role}
-                onChange={(e) => setRole(e.target.value)}
-                required
-              >
-                <option value=""></option>
-                <option value="super_admin">Super Admin</option>
-                <option value="admin">Administrator</option>
-                <option value="manager">Manager</option>
+            <div className={`input-group select-group ${role ? "filled" : ""}`}>
+              <select value={role} onChange={(e) => setRole(e.target.value)} required>
+                <option value="" disabled hidden></option>
                 <option value="staff">Staff</option>
+                <option value="manager">Manager</option>
+                <option value="admin">Admin</option>
+                <option value="superadmin">Superadmin</option>
               </select>
-              <label>Select Role</label>
+              <label>Request Account Role</label>
             </div>
 
             <div className="input-group">
-              <input
-                type="password"
-                placeholder=" "
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
+              <input type="password" placeholder=" " value={password} onChange={(e) => setPassword(e.target.value)} required />
               <label>Password</label>
             </div>
 
             <div className="input-group">
-              <input
-                type="password"
-                placeholder=" "
-                value={confirm}
-                onChange={(e) => setConfirm(e.target.value)}
-                required
-              />
+              <input type="password" placeholder=" " value={confirm} onChange={(e) => setConfirm(e.target.value)} required />
               <label>Confirm Password</label>
             </div>
 
@@ -186,12 +177,12 @@ const Register: React.FC = () => {
           </form>
 
           <p className="login-text">
-            Already have an account? <Link to="/">Sign In</Link>
+            Already have an account? <Link to="/login">Sign In</Link>
           </p>
         </motion.div>
       </div>
 
-      {/* CSS */}
+      {/* ✅ FULL UI CSS */}
       <style>{`
         .register-container {
           display: grid;
@@ -203,7 +194,6 @@ const Register: React.FC = () => {
         .left-side {
           background: url("https://images.unsplash.com/photo-1553413077-190dd305871c?q=80&w=2070&auto=format&fit=crop")
           center/cover no-repeat;
-          position: relative;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -262,6 +252,10 @@ const Register: React.FC = () => {
           cursor: pointer;
           margin-bottom: 1.5rem;
           font-weight: 500;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 10px;
         }
 
         .divider {
@@ -293,13 +287,12 @@ const Register: React.FC = () => {
           font-size: 14px;
           color: #94a3b8;
           transition: 0.2s;
-          pointer-events: none;
         }
 
         .input-group input:focus + label,
         .input-group input:not(:placeholder-shown) + label,
         .input-group select:focus + label,
-        .input-group select:not([value=""]) + label {
+        .input-group.filled label {
           top: -8px;
           left: 10px;
           font-size: 11px;
@@ -308,33 +301,27 @@ const Register: React.FC = () => {
           color: #6366f1;
         }
 
+        .select-group select {
+          appearance: none;
+          padding-right: 40px;
+        }
+
+        .select-group::after {
+          content: "▼";
+          position: absolute;
+          right: 14px;
+          top: 50%;
+          transform: translateY(-50%);
+          font-size: 12px;
+          color: #94a3b8;
+        }
+
         .primary-btn {
           width: 100%;
           padding: 14px;
           border-radius: 10px;
-          border: none;
           background: linear-gradient(90deg,#6366f1,#7c3aed);
           color: white;
-          font-weight: 600;
-          cursor: pointer;
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          gap: 8px;
-        }
-
-        .primary-btn:hover {
-          opacity: 0.9;
-        }
-
-        .login-text {
-          text-align: center;
-          margin-top: 1.5rem;
-        }
-
-        .login-text a {
-          color: #8b5cf6;
-          text-decoration: none;
         }
 
         .spin {

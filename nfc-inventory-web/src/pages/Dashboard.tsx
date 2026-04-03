@@ -86,6 +86,10 @@ const Dashboard: React.FC = () => {
                             <div className="badge badge-success" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                 <Database size={14} /> XAMPP MySQL Online
                             </div>
+                            <div className={`badge ${stats?.globalStatus === 'All Users Online' ? 'badge-success' : 'badge-warning'}`} 
+                                 style={{ display: 'flex', alignItems: 'center', gap: '6px', border: '1px solid transparent' }}>
+                                <Activity size={14} /> {stats?.globalStatus || 'System Syncing...'}
+                            </div>
                             <button className="btn btn-primary" onClick={() => fetchData()}>
                                 <Activity size={16} /> Refresh
                             </button>
@@ -146,6 +150,7 @@ const Dashboard: React.FC = () => {
                                 options={{
                                     responsive: true,
                                     maintainAspectRatio: false,
+                                    animation: false, // Performance optimization
                                     plugins: { legend: { display: false } },
                                     scales: {
                                         y: { grid: { color: 'rgba(0,0,0,0.05)' } },
@@ -167,7 +172,7 @@ const Dashboard: React.FC = () => {
                             {recentScans.length === 0 ? (
                                 <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
                                     <Clock size={32} style={{ opacity: 0.2, margin: '0 auto 10px' }} />
-                                    <p style={{ fontSize: '0.8rem' }}>Waiting for data...</p>
+                                    <p style={{ fontSize: '0.8rem' }}>No scans detected yet</p>
                                 </div>
                             ) : recentScans.map((scan, idx) => (
                                 <div key={scan.id} style={{
@@ -222,23 +227,33 @@ const Dashboard: React.FC = () => {
                                 {recentActivity.slice(0, 8).map((log: any) => (
                                     <tr key={log.id}>
                                         <td>
-                                            <div style={{ fontWeight: 600 }}>{log.product?.name || 'Unknown'}</div>
-                                            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{log.product?.sku}</div>
+                                            <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '0.9rem' }}>{log.product?.name || 'Unknown'}</div>
+                                            <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>{log.product?.sku}</div>
                                         </td>
                                         <td>
-                                            <span className={`badge ${log.action === 'IN' ? 'badge-success' : log.action === 'OUT' ? 'badge-danger' : 'badge-warning'}`}>
-                                                {log.action === 'IN' ? 'RESTOCK' : log.action === 'OUT' ? 'DISPATCH' : log.action}
-                                            </span>
-                                        </td>
-                                        <td style={{ fontWeight: 700, color: log.action === 'IN' ? '#10b981' : log.action === 'OUT' ? '#ef4444' : 'inherit' }}>
-                                            {log.action === 'IN' ? '+' : log.action === 'OUT' ? '-' : ''}{log.quantity > 0 ? log.quantity : '—'}
-                                        </td>
-                                        <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                                <User size={12} /> Admin
+                                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                                <span style={{ 
+                                                    fontSize: '0.6rem', 
+                                                    fontWeight: 800, 
+                                                    color: log.action === 'IN' ? '#16a34a' : '#dc2626'
+                                                }}>STOCK</span>
+                                                <span style={{ 
+                                                    fontSize: '0.8rem', 
+                                                    fontWeight: 900, 
+                                                    marginTop: '-3px',
+                                                    color: log.action === 'IN' ? '#16a34a' : '#dc2626'
+                                                }}>{log.action === 'IN' ? 'RESTOCK' : 'DISPATCH'}</span>
                                             </div>
                                         </td>
-                                        <td style={{ fontSize: '0.8rem' }}>{new Date(log.created_at).toLocaleTimeString()}</td>
+                                        <td style={{ fontWeight: 900, color: log.action === 'IN' ? '#10b981' : '#ef4444', fontSize: '1.1rem' }}>
+                                            {log.action === 'IN' ? '+' : '-'}{Math.abs(log.quantity)}
+                                        </td>
+                                        <td style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                <User size={12} style={{ opacity: 0.5 }} /> System
+                                            </div>
+                                        </td>
+                                        <td style={{ fontSize: '0.75rem', fontWeight: 600 }}>{new Date(log.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
                                     </tr>
                                 ))}
                             </tbody>

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Layout from '../components/Layout';
 import { getProducts, addProduct, deleteProduct, updateProduct } from '../api';
 import { Edit2, Trash2, Plus, Search, Package, Wifi, WifiOff, Database, CheckCircle2, AlertCircle, X } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 const Products: React.FC = () => {
     const [products, setProducts] = useState<any[]>([]);
@@ -10,10 +11,10 @@ const Products: React.FC = () => {
     const [editingProduct, setEditingProduct] = useState<any>(null);
     const [searchTerm, setSearchTerm] = useState("");
     const [savingProduct, setSavingProduct] = useState(false);
-    const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
-    const [saveError, setSaveError] = useState<string | null>(null);
-    const userRole = localStorage.getItem('role') || 'user';
-    const isRestricted = userRole === 'user';
+    const userRole = localStorage.getItem('role') || 'staff';
+    const canAddProduct = userRole === 'admin' || userRole === 'superadmin';
+    const canEditProduct = userRole === 'manager' || userRole === 'admin' || userRole === 'superadmin';
+    const canDeleteProduct = userRole === 'admin' || userRole === 'superadmin';
 
     const fetchProducts = async () => {
         try {
@@ -33,16 +34,7 @@ const Products: React.FC = () => {
         fetchProducts();
     }, []);
 
-    // Auto-clear messages
-    useEffect(() => {
-        if (saveSuccess || saveError) {
-            const timer = setTimeout(() => {
-                setSaveSuccess(null);
-                setSaveError(null);
-            }, 5000);
-            return () => clearTimeout(timer);
-        }
-    }, [saveSuccess, saveError]);
+    // Auto-fetch products handled by useEffect above
 
     const handleAddProduct = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -51,13 +43,47 @@ const Products: React.FC = () => {
 
         const tagId = (formData.get('tag_id') as string)?.trim() || null;
 
+        const name = (formData.get('name') as string)?.trim();
+        const sku = (formData.get('sku') as string)?.trim();
+        const category = (formData.get('category') as string)?.trim();
+
+        // 🕵️ FRONTEND VALIDATION
+        const spamRegex = /(.)\1{3,}/;
+        const entireRepeatRegex = /^([a-zA-Z0-9])\1+$/;
+        const triplePatternRegex = /(.+)\1{2,}/; // Catches ghghgh, abcabcabc
+
+        if (spamRegex.test(name) || entireRepeatRegex.test(name) || triplePatternRegex.test(name)) {
+            toast.error("Invalid product name. Please enter a valid name");
+            return;
+        }
+
+        if (name.length < 3 || name.length > 50) {
+            toast.error("Product name must be 3–50 characters");
+            return;
+        }
+
         const productData: any = {
-            name: formData.get('name'),
-            sku: formData.get('sku'),
-            category: formData.get('category'),
-            stock: parseInt(formData.get('stock') as string),
-            price: parseFloat(formData.get('price') as string),
+            name: name,
+            sku: sku,
+            category: category,
+            stock_in: parseInt(formData.get('stock_in') as string) || 0,
+            stock_out: parseInt(formData.get('stock_out') as string) || 0,
+            purchase_price: parseFloat(formData.get('purchase_price') as string) || 0,
+            selling_price: parseFloat(formData.get('selling_price') as string) || 0,
         };
+
+        // 🏷️ CATEGORY VALIDATION
+        const categoryRegex = /^[A-Za-z ]+$/;
+        const doubleVowelRegex = /[aeiouAEIOU].*[aeiouAEIOU]/;
+        const alternatingRegex = /^([a-zA-Z]{1,2})\1+$/;
+        const ALLOWED_CATS = ["Electronics", "Clothing", "Grocery", "Stationery", "Accessories"];
+
+        if (!categoryRegex.test(category) || !doubleVowelRegex.test(category) || 
+            spamRegex.test(category) || alternatingRegex.test(category) ||
+            category.length < 3 || category.length > 50 || !ALLOWED_CATS.includes(category)) {
+            toast.error("Invalid category name");
+            return;
+        }
 
         // Only include tag_id if provided
         if (tagId) {
@@ -66,13 +92,12 @@ const Products: React.FC = () => {
 
         try {
             setSavingProduct(true);
-            setSaveError(null);
             const result = await addProduct(productData);
             setShowAddModal(false);
-            setSaveSuccess(`✅ Product "${result.name}" saved to MySQL database! ${tagId ? '(NFC Tag linked: ' + tagId + ')' : '(No NFC tag yet — link one via Scan page)'}`);
+            toast.success("Product added successfully");
             fetchProducts();
         } catch (err: any) {
-            setSaveError('Failed to add product: ' + (err.message || err));
+            toast.error('Failed to add product');
         } finally {
             setSavingProduct(false);
         }
@@ -85,12 +110,45 @@ const Products: React.FC = () => {
 
         const tagId = (formData.get('tag_id') as string)?.trim() || null;
 
+        const name = (formData.get('name') as string)?.trim();
+        const category = (formData.get('category') as string)?.trim();
+
+        // 🕵️ FRONTEND VALIDATION
+        const spamRegex = /(.)\1{3,}/;
+        const entireRepeatRegex = /^([a-zA-Z0-9])\1+$/;
+        const triplePatternRegex = /(.+)\1{2,}/;
+
+        if (spamRegex.test(name) || entireRepeatRegex.test(name) || triplePatternRegex.test(name)) {
+            toast.error("Invalid product name. Please enter a valid name");
+            return;
+        }
+
+        if (name.length < 3 || name.length > 50) {
+            toast.error("Product name must be 3–50 characters");
+            return;
+        }
+
         const productData: any = {
-            name: formData.get('name'),
-            category: formData.get('category'),
-            stock: parseInt(formData.get('stock') as string),
-            price: parseFloat(formData.get('price') as string),
+            name: name,
+            category: category,
+            stock_in: parseInt(formData.get('stock_in') as string) || 0,
+            stock_out: parseInt(formData.get('stock_out') as string) || 0,
+            purchase_price: parseFloat(formData.get('purchase_price') as string) || 0,
+            selling_price: parseFloat(formData.get('selling_price') as string) || 0,
         };
+
+        // 🏷️ CATEGORY VALIDATION
+        const categoryRegex = /^[A-Za-z ]+$/;
+        const doubleVowelRegex = /[aeiouAEIOU].*[aeiouAEIOU]/;
+        const alternatingRegex = /^([a-zA-Z]{1,2})\1+$/;
+        const ALLOWED_CATS = ["Electronics", "Clothing", "Grocery", "Stationery", "Accessories"];
+
+        if (!categoryRegex.test(category) || !doubleVowelRegex.test(category) || 
+            spamRegex.test(category) || alternatingRegex.test(category) ||
+            category.length < 3 || category.length > 50 || !ALLOWED_CATS.includes(category)) {
+            toast.error("Invalid category name");
+            return;
+        }
 
         // Include tag_id (can update/clear it)
         if (tagId !== null) {
@@ -99,13 +157,12 @@ const Products: React.FC = () => {
 
         try {
             setSavingProduct(true);
-            setSaveError(null);
             await updateProduct(editingProduct.id, productData);
             setEditingProduct(null);
-            setSaveSuccess(`✅ Product "${productData.name}" updated in MySQL!`);
+            toast.success("Product updated successfully");
             fetchProducts();
         } catch (err: any) {
-            setSaveError('Failed to update product: ' + (err.message || err));
+            toast.error('Failed to update product');
         } finally {
             setSavingProduct(false);
         }
@@ -115,10 +172,10 @@ const Products: React.FC = () => {
         if (!window.confirm("Are you sure you want to delete this product?")) return;
         try {
             await deleteProduct(id);
-            setSaveSuccess("Product deleted from MySQL database.");
+            toast.success("Product deleted successfully");
             fetchProducts();
         } catch (err: any) {
-            setSaveError('Failed to delete product: ' + (err.message || err));
+            toast.error('Failed to delete product');
         }
     };
 
@@ -133,45 +190,26 @@ const Products: React.FC = () => {
     return (
         <Layout>
             <div className="animate-fade">
-                <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-                    <div>
+                <header style={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'center', 
+                    marginBottom: '2rem',
+                    flexWrap: 'wrap',
+                    gap: '1rem'
+                }}>
+                    <div style={{ minWidth: '200px' }}>
                         <h1 style={{ fontSize: '1.85rem', fontWeight: 800, letterSpacing: '-0.5px' }}>Product Catalog</h1>
                         <p style={{ color: 'var(--text-muted)' }}>Manage your inventory items and stock levels</p>
                     </div>
-                    {!isRestricted && (
-                        <button className="btn btn-primary" onClick={() => setShowAddModal(true)}>
+                    {canAddProduct && (
+                        <button className="btn btn-primary" onClick={() => setShowAddModal(true)} style={{ whiteSpace: 'nowrap' }}>
                             <Plus size={18} style={{ marginRight: '8px' }} /> Add New Product
                         </button>
                     )}
                 </header>
 
-                {/* STATUS MESSAGES */}
-                {saveSuccess && (
-                    <div style={{
-                        padding: '1rem 1.5rem', background: '#f0fdf4', color: '#16a34a',
-                        borderRadius: '16px', border: '1px solid #bbf7d0', marginBottom: '1.5rem',
-                        display: 'flex', alignItems: 'center', gap: '10px', animation: 'slideDown 0.3s ease'
-                    }}>
-                        <CheckCircle2 size={18} />
-                        <span style={{ flex: 1, fontWeight: 600, fontSize: '0.9rem' }}>{saveSuccess}</span>
-                        <button onClick={() => setSaveSuccess(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#16a34a' }}>
-                            <X size={16} />
-                        </button>
-                    </div>
-                )}
-                {saveError && (
-                    <div style={{
-                        padding: '1rem 1.5rem', background: '#fef2f2', color: '#dc2626',
-                        borderRadius: '16px', border: '1px solid #fee2e2', marginBottom: '1.5rem',
-                        display: 'flex', alignItems: 'center', gap: '10px'
-                    }}>
-                        <AlertCircle size={18} />
-                        <span style={{ flex: 1, fontWeight: 600, fontSize: '0.9rem' }}>{saveError}</span>
-                        <button onClick={() => setSaveError(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626' }}>
-                            <X size={16} />
-                        </button>
-                    </div>
-                )}
+                {/* Status messages handled by toasts */}
 
                 {/* NFC STATS BAR */}
                 <div style={{
@@ -209,52 +247,118 @@ const Products: React.FC = () => {
                 </div>
 
                 <div className="table-container">
-                    <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', gap: '1rem', background: '#f8fafc' }}>
+                    <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', gap: '1rem', background: '#fcfdfe' }}>
                         <div style={{ position: 'relative', flex: 1 }}>
-                            <Search size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                            <Search size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
                             <input
                                 type="text"
                                 placeholder="Search by name or SKU..."
-                                style={{ width: '100%', paddingLeft: '40px' }}
+                                style={{ 
+                                    width: '100%', 
+                                    paddingLeft: '48px', 
+                                    height: '50px',
+                                    borderRadius: '16px',
+                                    background: 'white',
+                                    boxShadow: '0 2px 10px rgba(0,0,0,0.02)'
+                                }}
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                             />
                         </div>
                     </div>
-                    <table>
+                    <table style={{ minWidth: '1350px' }}>
                         <thead>
                             <tr>
-                                <th>Product</th>
-                                <th>Category</th>
-                                <th>Stock Level</th>
-                                <th>Price</th>
-                                <th>NFC Status</th>
-                                {!isRestricted && <th>Actions</th>}
+                                <th style={{ width: '280px' }}>Item Details</th>
+                                <th style={{ width: '140px' }}>Category</th>
+                                <th>P. Price</th>
+                                <th>S. Price</th>
+                                <th style={{ color: '#16a34a' }}>Stock In</th>
+                                <th style={{ color: '#dc2626' }}>Stock Out</th>
+                                <th style={{ width: '120px' }}>Remaining</th>
+                                <th>Total Stock</th>
+                                <th style={{ color: '#16a34a' }}>Profit Earned</th>
+                                <th style={{ width: '160px' }}>NFC Connection</th>
+                                {(canEditProduct || canDeleteProduct) && <th style={{ width: '100px', textAlign: 'center' }}>Actions</th>}
                             </tr>
                         </thead>
                         <tbody>
                             {loading ? (
-                                <tr><td colSpan={6} style={{ textAlign: 'center', padding: '3rem' }}>Loading catalog...</td></tr>
+                                <tr><td colSpan={12} style={{ textAlign: 'center', padding: '3rem' }}>Loading catalog...</td></tr>
                             ) : filteredProducts.length === 0 ? (
                                 <tr>
-                                    <td colSpan={6} style={{ textAlign: 'center', padding: '4rem' }}>
+                                    <td colSpan={12} style={{ textAlign: 'center', padding: '4rem' }}>
                                         <Package size={48} style={{ margin: '0 auto 1rem', opacity: 0.2 }} />
                                         <p style={{ color: 'var(--text-muted)' }}>No products match your search</p>
                                     </td>
                                 </tr>
                             ) : filteredProducts.map((product) => (
-                                <tr key={product.id}>
-                                    <td>
-                                        <div style={{ fontWeight: 700 }}>{product.name}</div>
-                                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{product.sku}</div>
+                                <tr key={product.id} className="table-row-hover">
+                                    <td style={{ maxWidth: '280px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                            <div style={{ 
+                                                width: '40px', height: '40px', borderRadius: '12px', 
+                                                background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                color: 'var(--primary)', fontWeight: 800
+                                            }}>
+                                                {product.name.charAt(0).toUpperCase()}
+                                            </div>
+                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                                <div style={{ 
+                                                    fontWeight: 800, color: '#1e293b',
+                                                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' 
+                                                }} title={product.name}>
+                                                    {product.name}
+                                                </div>
+                                                <div style={{ 
+                                                    fontSize: '0.7rem', color: '#64748b', fontWeight: 600,
+                                                    fontFamily: 'monospace', opacity: 0.8
+                                                }}>
+                                                    {product.sku}
+                                                </div>
+                                            </div>
+                                        </div>
                                     </td>
-                                    <td><span style={{ fontSize: '0.875rem' }}>{product.category}</span></td>
-                                    <td>
-                                        <span className={`badge ${product.stock < 10 ? 'badge-danger' : 'badge-success'}`}>
-                                            {product.stock} units
+                                    <td style={{ maxWidth: '140px' }}>
+                                        <span style={{ 
+                                            fontSize: '0.75rem', fontWeight: 700, color: '#475569',
+                                            padding: '4px 10px', background: '#f1f5f9', borderRadius: '20px'
+                                        }}>
+                                            {product.category}
                                         </span>
                                     </td>
-                                    <td style={{ fontWeight: 700, color: 'var(--primary)' }}>₹{product.price.toLocaleString('en-IN')}</td>
+                                    <td style={{ fontWeight: 600, color: '#64748b', fontSize: '0.85rem' }}>₹{product.purchase_price.toLocaleString('en-IN')}</td>
+                                    <td style={{ fontWeight: 800, color: '#1e293b', fontSize: '0.9rem' }}>₹{product.selling_price.toLocaleString('en-IN')}</td>
+                                    <td>
+                                        <div style={{ 
+                                            padding: '4px 12px', background: '#f0fdf4', color: '#16a34a', 
+                                            borderRadius: '8px', fontWeight: 800, fontSize: '0.8rem', display: 'inline-block'
+                                        }}>
+                                            +{product.stock_in}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div style={{ 
+                                            padding: '4px 12px', background: '#fef2f2', color: '#dc2626', 
+                                            borderRadius: '8px', fontWeight: 800, fontSize: '0.8rem', display: 'inline-block'
+                                        }}>
+                                            -{product.stock_out}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span className={`badge ${product.remaining_stock < 10 ? 'badge-danger' : 'badge-success'}`} style={{ fontSize: '0.85rem', padding: '6px 14px' }}>
+                                            {product.remaining_stock}
+                                        </span>
+                                    </td>
+                                    <td style={{ fontWeight: 700, color: '#64748b' }}>{product.total_stock}</td>
+                                    <td>
+                                        <div style={{ 
+                                            color: '#16a34a', fontWeight: 900, fontSize: '0.95rem',
+                                            display: 'flex', alignItems: 'center', gap: '4px'
+                                        }}>
+                                            ₹{product.profit.toLocaleString('en-IN')}
+                                        </div>
+                                    </td>
                                     <td>
                                         {product.tag_id ? (
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -285,18 +389,20 @@ const Products: React.FC = () => {
                                             </div>
                                         )}
                                     </td>
-                                    {!isRestricted && (
-                                        <td>
-                                            <div style={{ display: 'flex', gap: '8px' }}>
+                                    <td>
+                                        <div style={{ display: 'flex', gap: '8px' }}>
+                                            {canEditProduct && (
                                                 <button className="btn" style={{ padding: '6px', background: '#f1f5f9' }} onClick={() => setEditingProduct(product)}>
                                                     <Edit2 size={14} />
                                                 </button>
+                                            )}
+                                            {canDeleteProduct && (
                                                 <button className="btn" style={{ padding: '6px', background: '#fee2e2', color: '#dc2626' }} onClick={() => handleDelete(product.id)}>
                                                     <Trash2 size={14} />
                                                 </button>
-                                            </div>
-                                        </td>
-                                    )}
+                                            )}
+                                        </div>
+                                    </td>
                                 </tr>
                             ))}
                         </tbody>
@@ -307,7 +413,7 @@ const Products: React.FC = () => {
             {/* Add Modal */}
             {showAddModal && (
                 <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-                    <div className="modal-content animate-slide" style={{ background: 'white', padding: '2.5rem', borderRadius: '32px', width: '100%', maxWidth: '520px', boxShadow: 'var(--shadow-lg)' }}>
+                    <div className="modal-content animate-slide" style={{ background: 'white', padding: '2rem 2.5rem', borderRadius: '32px', width: '100%', maxWidth: '640px', boxShadow: 'var(--shadow-lg)', overflowY: 'auto', maxHeight: '90vh' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
                             <h2 style={{ fontSize: '1.5rem', fontWeight: 800 }}>Create Product</h2>
                             <button onClick={() => setShowAddModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
@@ -334,32 +440,56 @@ const Products: React.FC = () => {
                         <form onSubmit={handleAddProduct}>
                             <div className="input-group">
                                 <label style={{ fontWeight: 700, fontSize: '0.85rem' }}>Product Name *</label>
-                                <input name="name" type="text" placeholder="e.g. iPhone 15 Pro" required
-                                    style={{ padding: '12px 14px', borderRadius: '12px', border: '1px solid var(--border)', width: '100%' }}
-                                />
-                            </div>
-                            <div className="input-group">
-                                <label style={{ fontWeight: 700, fontSize: '0.85rem' }}>SKU *</label>
-                                <input name="sku" type="text" placeholder="e.g. IP15-PRO-BLK" required
-                                    style={{ padding: '12px 14px', borderRadius: '12px', border: '1px solid var(--border)', width: '100%' }}
-                                />
-                            </div>
-                            <div className="input-group">
-                                <label style={{ fontWeight: 700, fontSize: '0.85rem' }}>Category *</label>
-                                <input name="category" type="text" placeholder="e.g. Electronics" required
+                                <input name="name" type="text" placeholder="e.g. iPhone 15 Pro" required maxLength={50}
                                     style={{ padding: '12px 14px', borderRadius: '12px', border: '1px solid var(--border)', width: '100%' }}
                                 />
                             </div>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                                 <div className="input-group">
-                                    <label style={{ fontWeight: 700, fontSize: '0.85rem' }}>Initial Stock *</label>
-                                    <input name="stock" type="number" defaultValue="0" min="0" required
+                                    <label style={{ fontWeight: 700, fontSize: '0.85rem' }}>SKU *</label>
+                                    <input name="sku" type="text" placeholder="e.g. IP15-PRO-BLK" required
                                         style={{ padding: '12px 14px', borderRadius: '12px', border: '1px solid var(--border)', width: '100%' }}
                                     />
                                 </div>
                                 <div className="input-group">
-                                    <label style={{ fontWeight: 700, fontSize: '0.85rem' }}>Price (₹) *</label>
-                                    <input name="price" type="number" step="0.01" defaultValue="0" min="0" required
+                                    <label style={{ fontWeight: 700, fontSize: '0.85rem' }}>Category *</label>
+                                    <select name="category" required
+                                        style={{ padding: '12px 14px', borderRadius: '12px', border: '1px solid var(--border)', width: '100%', background: 'white' }}
+                                    >
+                                        <option value="">Select Category</option>
+                                        <option value="Electronics">Electronics</option>
+                                        <option value="Clothing">Clothing</option>
+                                        <option value="Grocery">Grocery</option>
+                                        <option value="Stationery">Stationery</option>
+                                        <option value="Accessories">Accessories</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                <div className="input-group">
+                                    <label style={{ fontWeight: 700, fontSize: '0.85rem' }}>Purchase Price *</label>
+                                    <input name="purchase_price" type="number" step="0.01" defaultValue="0" min="0" required
+                                        style={{ padding: '12px 14px', borderRadius: '12px', border: '1px solid var(--border)', width: '100%' }}
+                                    />
+                                </div>
+                                <div className="input-group">
+                                    <label style={{ fontWeight: 700, fontSize: '0.85rem' }}>Selling Price *</label>
+                                    <input name="selling_price" type="number" step="0.01" defaultValue="0" min="0" required
+                                        style={{ padding: '12px 14px', borderRadius: '12px', border: '1px solid var(--border)', width: '100%' }}
+                                    />
+                                </div>
+                            </div>
+
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                <div className="input-group">
+                                    <label style={{ fontWeight: 700, fontSize: '0.85rem', color: '#16a34a' }}>Stock In *</label>
+                                    <input name="stock_in" type="number" defaultValue="0" min="0" required
+                                        style={{ padding: '12px 14px', borderRadius: '12px', border: '1px solid var(--border)', width: '100%' }}
+                                    />
+                                </div>
+                                <div className="input-group">
+                                    <label style={{ fontWeight: 700, fontSize: '0.85rem', color: '#dc2626' }}>Stock Out *</label>
+                                    <input name="stock_out" type="number" defaultValue="0" min="0" required
                                         style={{ padding: '12px 14px', borderRadius: '12px', border: '1px solid var(--border)', width: '100%' }}
                                     />
                                 </div>
@@ -408,7 +538,7 @@ const Products: React.FC = () => {
             {/* Edit Modal */}
             {editingProduct && (
                 <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-                    <div className="modal-content animate-slide" style={{ background: 'white', padding: '2.5rem', borderRadius: '32px', width: '100%', maxWidth: '520px', boxShadow: 'var(--shadow-lg)' }}>
+                    <div className="modal-content animate-slide" style={{ background: 'white', padding: '2rem 2.5rem', borderRadius: '32px', width: '100%', maxWidth: '640px', boxShadow: 'var(--shadow-lg)', overflowY: 'auto', maxHeight: '90vh' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
                             <h2 style={{ fontSize: '1.5rem', fontWeight: 800 }}>Edit Product</h2>
                             <button onClick={() => setEditingProduct(null)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
@@ -419,26 +549,53 @@ const Products: React.FC = () => {
                         <form onSubmit={handleUpdateProduct}>
                             <div className="input-group">
                                 <label style={{ fontWeight: 700, fontSize: '0.85rem' }}>Product Name</label>
-                                <input name="name" type="text" defaultValue={editingProduct.name} required
-                                    style={{ padding: '12px 14px', borderRadius: '12px', border: '1px solid var(--border)', width: '100%' }}
-                                />
-                            </div>
-                            <div className="input-group">
-                                <label style={{ fontWeight: 700, fontSize: '0.85rem' }}>Category</label>
-                                <input name="category" type="text" defaultValue={editingProduct.category} required
+                                <input name="name" type="text" defaultValue={editingProduct.name} required maxLength={50}
                                     style={{ padding: '12px 14px', borderRadius: '12px', border: '1px solid var(--border)', width: '100%' }}
                                 />
                             </div>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                                 <div className="input-group">
-                                    <label style={{ fontWeight: 700, fontSize: '0.85rem' }}>Current Stock</label>
-                                    <input name="stock" type="number" defaultValue={editingProduct.stock} min="0" required
+                                    <label style={{ fontWeight: 700, fontSize: '0.85rem' }}>Category</label>
+                                    <select name="category" defaultValue={editingProduct.category} required
+                                        style={{ padding: '12px 14px', borderRadius: '12px', border: '1px solid var(--border)', width: '100%', background: 'white' }}
+                                    >
+                                        <option value="Electronics">Electronics</option>
+                                        <option value="Clothing">Clothing</option>
+                                        <option value="Grocery">Grocery</option>
+                                        <option value="Stationery">Stationery</option>
+                                        <option value="Accessories">Accessories</option>
+                                    </select>
+                                </div>
+                                <div className="input-group">
+                                    <label style={{ fontWeight: 700, fontSize: '0.85rem', visibility: 'hidden' }}>Spacer</label>
+                                    <div style={{ height: '45px' }}></div>
+                                </div>
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                <div className="input-group">
+                                    <label style={{ fontWeight: 700, fontSize: '0.85rem' }}>Purchase Price</label>
+                                    <input name="purchase_price" type="number" step="0.01" defaultValue={editingProduct.purchase_price} min="0" required
                                         style={{ padding: '12px 14px', borderRadius: '12px', border: '1px solid var(--border)', width: '100%' }}
                                     />
                                 </div>
                                 <div className="input-group">
-                                    <label style={{ fontWeight: 700, fontSize: '0.85rem' }}>Price (₹)</label>
-                                    <input name="price" type="number" step="0.01" defaultValue={editingProduct.price} min="0" required
+                                    <label style={{ fontWeight: 700, fontSize: '0.85rem' }}>Selling Price</label>
+                                    <input name="selling_price" type="number" step="0.01" defaultValue={editingProduct.selling_price} min="0" required
+                                        style={{ padding: '12px 14px', borderRadius: '12px', border: '1px solid var(--border)', width: '100%' }}
+                                    />
+                                </div>
+                            </div>
+
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                <div className="input-group">
+                                    <label style={{ fontWeight: 700, fontSize: '0.85rem', color: '#16a34a' }}>Stock In</label>
+                                    <input name="stock_in" type="number" defaultValue={editingProduct.stock_in} min="0" required
+                                        style={{ padding: '12px 14px', borderRadius: '12px', border: '1px solid var(--border)', width: '100%' }}
+                                    />
+                                </div>
+                                <div className="input-group">
+                                    <label style={{ fontWeight: 700, fontSize: '0.85rem', color: '#dc2626' }}>Stock Out</label>
+                                    <input name="stock_out" type="number" defaultValue={editingProduct.stock_out} min="0" required
                                         style={{ padding: '12px 14px', borderRadius: '12px', border: '1px solid var(--border)', width: '100%' }}
                                     />
                                 </div>
@@ -483,6 +640,21 @@ const Products: React.FC = () => {
                 @keyframes slideDown {
                     from { opacity: 0; transform: translateY(-10px); }
                     to { opacity: 1; transform: translateY(0); }
+                }
+                .table-row-hover {
+                    transition: all 0.2s ease;
+                }
+                .table-row-hover:hover {
+                    background-color: #f8fafc !important;
+                    transform: scale(1.002);
+                    box-shadow: inset 4px 0 0 var(--primary);
+                }
+                table th {
+                    font-size: 0.75rem !important;
+                    text-transform: uppercase !important;
+                    letter-spacing: 0.05em !important;
+                    color: #64748b !important;
+                    padding: 1.25rem 1rem !important;
                 }
             `}</style>
         </Layout>

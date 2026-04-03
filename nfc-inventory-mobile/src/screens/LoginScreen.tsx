@@ -9,26 +9,36 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
-  Modal,
-  Alert
+  Modal
 } from "react-native";
 
-import { Mail, Lock, Eye, EyeOff, Nfc, AlertCircle, Settings, X, Server } from "lucide-react-native";
+import { Mail, Lock, Eye, EyeOff, Nfc, Settings, X, Server } from "lucide-react-native";
 import { theme } from "../styles/theme";
 import { login, initAPI, setBaseURL } from "../api";
+import Toast, { ToastType } from "../components/Toast";
 
 const LoginScreen = ({ navigation }: any) => {
 
   const [email, setEmail] = useState("admin@example.com");
-  const [password, setPassword] = useState("");
+  const [password, setPassword] = useState("password123");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [currentUrl, setCurrentUrl] = useState("");
+
+  // Toast state
+  const [toastVisible, setToastVisible] = useState(false);
+  const [toastMessage, setToastMessage] = useState("");
+  const [toastType, setToastType] = useState<ToastType>("info");
 
   // Server Settings Modal
   const [showSettings, setShowSettings] = useState(false);
   const [newUrl, setNewUrl] = useState("");
+
+  const showToast = (message: string, type: ToastType = "info") => {
+    setToastMessage(message);
+    setToastType(type);
+    setToastVisible(true);
+  };
 
   useEffect(() => {
     const loadUrl = async () => {
@@ -42,63 +52,61 @@ const LoginScreen = ({ navigation }: any) => {
   const handleUpdateUrl = async () => {
     try {
       if (!newUrl.startsWith("http")) {
-        Alert.alert("Invalid URL", "Please include http:// or https://");
+        showToast("Invalid URL", "error");
         return;
       }
       await setBaseURL(newUrl);
       setCurrentUrl(newUrl);
       setShowSettings(false);
-      Alert.alert("Success", "Server URL updated successfully!");
+      showToast("Server URL updated", "success");
     } catch (err) {
-      Alert.alert("Error", "Failed to update URL");
+      showToast("Update failed", "error");
     }
   };
 
   const handleLogin = async () => {
-
     if (!email || !password) {
-      setError("Please fill in all fields");
+      showToast("Please fill in all fields", "error");
       return;
     }
 
     try {
-
       setLoading(true);
-      setError(null);
-
       const response = await login(email.trim(), password);
 
-      if (response.access_token) {
-        console.log("Login successful:", response);
-        navigation.replace("Dashboard");
-      } else if (response.token) { // Handle variations
-         navigation.replace("Dashboard");
+      if (response.access_token || response.token) {
+        showToast("Login successful", "success");
+        setTimeout(() => {
+          navigation.replace("Dashboard");
+        }, 1000);
       }
-
     } catch (err: any) {
       console.error("Login Error:", err);
       if (err.response) {
-        setError(err.response.data?.detail || "Invalid credentials");
+        showToast("Login failed. Check your credentials", "error");
+      } else if (err.request) {
+        showToast("Network error. Check your connection", "error");
+      } else {
+        showToast("Login failed. Check your credentials", "error");
       }
-      else if (err.request) {
-        setError(`Cannot connect to server at: ${currentUrl}\n\nCheck your IP & WiFi.`);
-      }
-      else {
-        setError("Something went wrong. check console.");
-      }
-
     } finally {
       setLoading(false);
     }
   };
 
   return (
-
     <KeyboardAvoidingView
       style={{ flex: 1 }}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
       keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
     >
+      {/* Toast Component */}
+      <Toast
+        visible={toastVisible}
+        message={toastMessage}
+        type={toastType}
+        onHide={() => setToastVisible(false)}
+      />
 
       {/* Server Settings Modal */}
       <Modal
@@ -141,9 +149,7 @@ const LoginScreen = ({ navigation }: any) => {
       </Modal>
 
       <ScrollView contentContainerStyle={styles.container}>
-
         <View style={styles.content}>
-
           {/* Logo - Long press for settings */}
           <TouchableOpacity 
             onLongPress={() => setShowSettings(true)}
@@ -169,20 +175,10 @@ const LoginScreen = ({ navigation }: any) => {
             Sign in to manage your inventory
           </Text>
 
-          {/* Error */}
-          {error && (
-            <View style={styles.errorBox}>
-              <AlertCircle color={theme.colors.danger} size={18} />
-              <Text style={styles.errorText}>{error}</Text>
-            </View>
-          )}
-
           {/* Email */}
           <Text style={styles.label}>Email</Text>
-
           <View style={styles.inputWrapper}>
             <Mail size={20} color={theme.colors.textMuted} />
-
             <TextInput
               style={styles.input}
               placeholder="admin@example.com"
@@ -195,10 +191,8 @@ const LoginScreen = ({ navigation }: any) => {
 
           {/* Password */}
           <Text style={styles.label}>Password</Text>
-
           <View style={styles.inputWrapper}>
             <Lock size={20} color={theme.colors.textMuted} />
-
             <TextInput
               style={styles.input}
               placeholder="••••••••"
@@ -206,7 +200,6 @@ const LoginScreen = ({ navigation }: any) => {
               onChangeText={setPassword}
               secureTextEntry={!showPassword}
             />
-
             <TouchableOpacity
               onPress={() => setShowPassword(!showPassword)}
             >
@@ -214,7 +207,6 @@ const LoginScreen = ({ navigation }: any) => {
                 ? <EyeOff size={20} color={theme.colors.textMuted} />
                 : <Eye size={20} color={theme.colors.textMuted} />}
             </TouchableOpacity>
-
           </View>
 
           {/* Login Button */}
@@ -223,38 +215,28 @@ const LoginScreen = ({ navigation }: any) => {
             onPress={handleLogin}
             disabled={!!loading}
           >
-
             {loading
               ? <ActivityIndicator color="white" animating={true} />
               : <Text style={styles.loginText}>Sign In</Text>
             }
-
           </TouchableOpacity>
 
-          {/* Register Link FIXED */}
+          {/* Register Link */}
           <TouchableOpacity
             onPress={() => navigation.navigate("Register")}
             style={styles.registerLink}
           >
-
             <View style={styles.registerRow}>
-
               <Text style={styles.registerText}>
                 Don't have an account?
               </Text>
-
               <Text style={styles.registerHighlight}>
                 {" "}Register
               </Text>
-
             </View>
-
           </TouchableOpacity>
-
         </View>
-
       </ScrollView>
-
     </KeyboardAvoidingView>
   );
 };

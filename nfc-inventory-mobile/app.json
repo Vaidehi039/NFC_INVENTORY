@@ -3,20 +3,23 @@
     "name": "NFC Inventory Pro",
     "slug": "nfc-inventory-mobile",
     "version": "1.0.0",
-    "platforms": ["ios", "android", "web"],
+    "platforms": [
+      "ios",
+      "android",
+      "web"
+    ],
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": false,
-
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
-
-    "assetBundlePatterns": ["**/*"],
-
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.nfc.inventorypro",
@@ -24,28 +27,21 @@
         "NFCReaderUsageDescription": "This app uses NFC to scan inventory tags."
       }
     },
-
     "android": {
       "package": "com.nfc.inventorypro",
       "versionCode": 1,
-
       "permissions": [
         "android.permission.NFC",
         "android.permission.INTERNET"
       ],
-
-      "usesCleartextTraffic": true,
-
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       }
     },
-
     "web": {
       "favicon": "./assets/favicon.png"
     },
-
     "plugins": [
       [
         "react-native-nfc-manager",
@@ -53,6 +49,11 @@
           "selectIdentifier": true
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "3c11d73c-cf84-40cf-9edd-45d238adfa30"
+      }
+    }
   }
 }

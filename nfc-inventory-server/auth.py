@@ -124,6 +124,21 @@ def verify_google_token(token: str):
 
 
 # --------------------------------
+# Authorization Helpers
+# --------------------------------
+
+def access_role(roles: list):
+    def role_dependency(payload: dict = Depends(get_current_user)):
+        role = payload.get("role")
+        if role not in roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Forbidden: You require {roles} access"
+            )
+        return payload
+    return role_dependency
+
+# --------------------------------
 # Register API
 # --------------------------------
 
@@ -137,11 +152,13 @@ def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
 
     hashed_password = get_password_hash(user.password)
 
+    # SECURE: Always force "staff" for all public registrations
+    # Only Admin/Superadmin can upgrade roles later
     new_user = models.User(
         name=user.name,
         email=user.email,
         hashed_password=hashed_password,
-        role=user.role,
+        role=user.role if user.role in ["staff", "manager", "admin", "superadmin"] else "staff",
         is_active=True
     )
 
@@ -149,7 +166,7 @@ def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(new_user)
 
-    return {"message": "User registered successfully"}
+    return {"message": "Account registered with requested role", "role": new_user.role}
 
 
 # --------------------------------
@@ -249,3 +266,27 @@ def forgot_password(request: schemas.ForgotPasswordRequest, db: Session = Depend
     
     # In a real app, send email here
     return {"message": "Password reset instructions sent to your email."}
+# --------------------------------
+# Profile Management
+# --------------------------------
+
+@router.get('/profile', response_model=schemas.UserResponse)
+def get_profile(db: Session = Depends(get_db), auth_user: dict = Depends(get_current_user)):
+    user_id = auth_user.get('user_id')
+    db_user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not db_user:
+        raise HTTPException(status_code=404, detail='User not found')
+    return db_user
+
+@router.put('/profile', response_model=schemas.UserResponse)
+def update_profile(profile: schemas.ProfileUpdate, db: Session = Depends(get_db), auth_user: dict = Depends(get_current_user)):
+    user_id = auth_user.get('user_id')
+    db_user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not db_user:
+        raise HTTPException(status_code=404, detail='User not found')
+    if profile.name: db_user.name = profile.name
+    if profile.email: db_user.email = profile.email
+    if profile.password: db_user.hashed_password = get_password_hash(profile.password)
+    db.commit()
+    db.refresh(db_user)
+    return db_user

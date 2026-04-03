@@ -21,9 +21,11 @@ class User(Base):
 
     hashed_password = Column(String(255))
 
-    role = Column(String(50), default="user")
+    role = Column(String(50), default="staff")
 
     is_active = Column(Integer, default=1)
+    status = Column(String(20), default="offline")
+    last_seen = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
 
 # =========================
@@ -47,11 +49,18 @@ class Product(Base):
     tag_id = Column(String(100), nullable=True)
 
     stock = Column(Integer, default=0)
-
-    price = Column(Integer)
+    price = Column(Integer)  # Legacy price field (can be used as selling_price)
+    
+    # New Fields
+    purchase_price = Column(Integer, default=0)
+    selling_price = Column(Integer, default=0)
+    stock_in = Column(Integer, default=0)
+    stock_out = Column(Integer, default=0)
+    remaining_stock = Column(Integer, default=0)
+    total_stock = Column(Integer, default=0)
+    profit = Column(Integer, default=0)
 
     last_scanned = Column(DateTime)
-
     created_at = Column(DateTime, server_default=func.now())
 
     user = relationship("User", backref="products")
@@ -121,3 +130,45 @@ class NfcScan(Base):
     product = relationship("Product", back_populates="scans", lazy="joined")
 
     user = relationship("User", backref="scans")
+
+
+# =========================
+# VALIDATION RULES
+# =========================
+
+class ValidationRule(Base):
+
+    __tablename__ = "validation_rules"
+
+    id = Column(Integer, primary_key=True)
+
+    type = Column(String(50))  # "category", "name", "sku"
+
+    value = Column(String(255))
+
+    is_allowed = Column(Integer, default=1) # 1 for allowed, 0 for restricted
+
+    created_at = Column(DateTime, server_default=func.now())
+
+
+# =========================
+# INVALID ATTEMPTS LOG
+# =========================
+
+class InvalidAttempt(Base):
+
+    __tablename__ = "invalid_attempts"
+
+    id = Column(Integer, primary_key=True)
+
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+
+    email = Column(String(255))
+
+    item_name = Column(String(255))
+
+    attempt_details = Column(Text)
+
+    reason = Column(String(255))
+
+    created_at = Column(DateTime, server_default=func.now())

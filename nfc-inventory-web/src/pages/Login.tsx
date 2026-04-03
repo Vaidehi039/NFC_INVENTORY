@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { Nfc, Eye, EyeOff } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useGoogleLogin } from '@react-oauth/google';
+import toast from 'react-hot-toast';
 import { login, googleLogin } from '../api';
 
 const Login: React.FC = () => {
@@ -15,26 +16,30 @@ const Login: React.FC = () => {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            // All token storage is now handled centrally in api.ts
             await login(email.trim(), password.trim());
+            toast.success('Login successful');
             navigate('/dashboard');
         } catch (err: any) {
-            alert('Login failed: ' + err.message);
+            if (err.message && err.message.toLowerCase().includes('network')) {
+                toast.error('Network error. Check your connection');
+            } else {
+                toast.error('Login failed. Check your credentials');
+            }
         }
     };
 
     const handleGoogleLogin = useGoogleLogin({
         onSuccess: async (tokenResponse) => {
             try {
-                // All token storage is now handled centrally in api.ts
                 await googleLogin(tokenResponse.access_token);
+                toast.success('Login successful');
                 navigate('/dashboard');
             } catch (err: any) {
-                alert('Google Login failed: ' + err.message);
+                toast.error('Google Login failed');
             }
         },
         onError: () => {
-            alert('Google Login Failed');
+            toast.error('Google Login Failed');
         },
     });
 
@@ -80,7 +85,7 @@ const Login: React.FC = () => {
                         <div className="logo-icon" style={{ width: '42px', height: '42px', background: 'var(--primary)', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
                             <Nfc size={24} />
                         </div>
-                        <span className="logo-text" style={{ fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.5px', color: 'var(--secondary)' }}>Aura NFC Control</span>
+                        <span className="logo-text" style={{ fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.5px', color: 'var(--secondary)' }}>NFC Inventory Control</span>
                     </div>
 
                     <div style={{ marginBottom: '2.5rem' }}>

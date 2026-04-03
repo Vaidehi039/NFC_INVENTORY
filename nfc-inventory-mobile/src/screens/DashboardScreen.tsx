@@ -11,65 +11,53 @@ import {
 import { useFocusEffect } from "@react-navigation/native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-import {
-  Box,
-  TrendingUp,
-  AlertTriangle,
-  Search,
-  AlertCircle,
-  LogOut
+import { 
+  Box, 
+  TrendingUp, 
+  AlertTriangle, 
+  Search, 
+  PlusCircle,
+  AlertCircle, 
+  LogOut,
+  Users as UsersIcon,
+  Activity
 } from "lucide-react-native";
 
 import { theme } from "../styles/theme";
-import { getDashboardStats, getNfcScans } from "../api";
+import { getDashboardStats, logout } from "../api";
+import { useStatusSync } from "../hooks/useStatusSync";
 
 const DashboardScreen = ({ navigation }: any) => {
+  // Activate Status Heartbeat
+  useStatusSync();
 
   const [stats, setStats] = useState<any>(null);
   const [scans, setScans] = useState<any[]>([]);
+  const [team, setTeam] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const handleLogout = async () => {
-    await AsyncStorage.removeItem("token");
+    await logout();
     navigation.navigate("Login");
   };
 
   const loadDashboard = async () => {
     try {
-
-      setLoading(true);
       setError(null);
+      const data = await getDashboardStats();
 
-      // 🔹 check token first
-      const token = await AsyncStorage.getItem("token");
-
-      if (!token) {
-        setError("Authentication error. Please login again.");
-        navigation.navigate("Login");
-        return;
-      }
-
-      const statsData = await getDashboardStats();
-
-      setStats(statsData?.stats || statsData);
-      setScans(statsData?.scans || []);
+      setStats(data?.stats || {});
+      setScans(data?.scans || []);
+      setTeam(data?.users || []);
 
     } catch (err: any) {
-
-      console.log("Dashboard Error:", err?.response?.data || err);
-
+      console.log("Dashboard Error:", err);
       if (err?.response?.status === 401) {
-        setError("Authentication error. Please login again.");
         navigation.navigate("Login");
-      }
-      else if (err?.response) {
-        setError(err.response.data?.detail || "API Error");
-      }
-      else {
+      } else {
         setError("Server unreachable. Tap to try again.");
       }
-
     } finally {
       setLoading(false);
     }
@@ -97,107 +85,93 @@ const DashboardScreen = ({ navigation }: any) => {
 
   return (
 
-    <ScrollView style={styles.container}>
-
-      {/* HEADER */}
-
-      <View style={styles.headerRow}>
-        <View>
-          <Text style={styles.title}>Operations Center</Text>
-          <Text style={styles.subtitle}>
-            Real-time MySQL Sync Active
-          </Text>
-        </View>
-        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
-          <LogOut size={22} color={theme.colors.danger} />
-        </TouchableOpacity>
-      </View>
-
-      {/* SCAN CARD */}
-
-      <TouchableOpacity
-        style={styles.scanCard}
-        onPress={() => navigation.navigate("Scan")}
-      >
-
-        <View style={styles.scanIcon}>
-          <Search size={26} color="white" />
-        </View>
-
-        <View style={{ flex: 1 }}>
-          <Text style={styles.scanTitle}>Ready to Scan</Text>
-          <Text style={styles.scanSub}>
-            Tap to start NFC inventory lookup
-          </Text>
-        </View>
-
-      </TouchableOpacity>
-
-      {/* STATS */}
-
-      <View style={styles.statsGrid}>
-
-        <View style={styles.statCard}>
-          <Box size={26} color="#6366f1" />
-          <Text style={styles.statNumber}>
-            {stats?.totalItems || 0}
-          </Text>
-          <Text style={styles.statLabel}>TOTAL ITEMS</Text>
-        </View>
-
-        <View style={styles.statCard}>
-          <TrendingUp size={26} color="#22c55e" />
-          <Text style={styles.statNumber}>
-            {stats?.totalStock || 0}
-          </Text>
-          <Text style={styles.statLabel}>GLOBAL STOCK</Text>
-        </View>
-
-        <View style={styles.statCard}>
-          <AlertTriangle size={26} color="#ef4444" />
-          <Text style={styles.statNumber}>
-            {stats?.lowStock || 0}
-          </Text>
-          <Text style={styles.statLabel}>LOW STOCK</Text>
-        </View>
-
-        <View style={styles.statCard}>
-          <Search size={26} color="#f59e0b" />
-          <Text style={styles.statNumber}>
-            {scans?.length || 0}
-          </Text>
-          <Text style={styles.statLabel}>RECENT SCANS</Text>
+    <View style={styles.mainContainer}>
+      <View style={styles.fixedHeader}>
+        {/* HEADER */}
+        <View style={styles.headerRow}>
+          <View>
+            <Text style={styles.title}>Operations Center</Text>
+            <Text style={styles.subtitle}>
+              Real-time MySQL Sync Active
+            </Text>
+          </View>
+          <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
+            <LogOut size={22} color={theme.colors.danger} />
+          </TouchableOpacity>
         </View>
 
       </View>
-      
-      {/* QUICK ACTIONS */}
-      <View style={styles.quickActions}>
-        <TouchableOpacity style={styles.actionCard} onPress={() => navigation.navigate("Scan")}>
-          <Search size={22} color={theme.colors.primary} />
-          <Text style={styles.actionText}>Inventory Lookup</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.actionCard} onPress={() => navigation.navigate("Scan")}>
-          <Box size={22} color={theme.colors.accent} />
-          <Text style={styles.actionText}>Quick Stock In</Text>
-        </TouchableOpacity>
-      </View>
 
-      {/* ERROR */}
+      <ScrollView style={styles.scrollArea} contentContainerStyle={{ paddingBottom: 120 }}>
+        {/* GLOBAL STATUS BANNER */}
+        <View style={[
+          styles.globalStatusBanner, 
+          { backgroundColor: stats?.globalStatus === "All Users Online" ? "rgba(34, 197, 94, 0.1)" : "rgba(245, 158, 11, 0.1)" }
+        ]}>
+          <Activity size={18} color={stats?.globalStatus === "All Users Online" ? "#22c55e" : "#f59e0b"} />
+          <Text style={[
+            styles.globalStatusText, 
+            { color: stats?.globalStatus === "All Users Online" ? "#22c55e" : "#f59e0b" }
+          ]}>
+            {stats?.globalStatus || "System Status Local"}
+          </Text>
+        </View>
 
-      {error && (
-        <TouchableOpacity style={styles.errorBox} onPress={loadDashboard}>
-          <AlertCircle color={theme.colors.danger} size={20} />
-          <Text style={styles.errorText}>{error}</Text>
-        </TouchableOpacity>
-      )}
+        {/* STATS */}
+        <View style={styles.statsGrid}>
+          {/* ... existing stats ... */}
+          <View style={styles.statCard}>
+            <Box size={26} color="#6366f1" />
+            <Text style={[styles.statNumber, { color: theme.colors.textMain }]}>
+              {String(stats?.totalItems || 0)}
+            </Text>
+            <Text style={styles.statLabel}>TOTAL ITEMS</Text>
+          </View>
+          <View style={styles.statCard}>
+            <TrendingUp size={26} color="#22c55e" />
+            <Text style={[styles.statNumber, { color: theme.colors.textMain }]}>
+              {String(stats?.totalStock || 0)}
+            </Text>
+            <Text style={styles.statLabel}>GLOBAL STOCK</Text>
+          </View>
+        </View>
 
-      {/* LIVE FEED */}
+        {/* TEAM AVAILABILITY */}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Team Availability</Text>
+        </View>
 
-      <View style={styles.feedHeader}>
-        <Text style={styles.feedTitle}>Live Scan Feed</Text>
-        <Text style={styles.realTime}>REAL-TIME</Text>
-      </View>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.teamSlider}>
+          {team.map((user: any, index: number) => (
+            <View key={index} style={styles.userStatusCard}>
+              <View style={[
+                styles.statusDot, 
+                { backgroundColor: user.status === 'online' ? theme.colors.accent : theme.colors.danger }
+              ]} />
+              <UsersIcon size={20} color={theme.colors.textMuted} />
+              <Text style={styles.userName} numberOfLines={1}>{user.name}</Text>
+              <Text style={styles.userRole}>{user.role.toUpperCase()}</Text>
+            </View>
+          ))}
+        </ScrollView>
+
+        {/* QUICK ACTIONS */}
+        <View style={styles.quickActions}>
+          <TouchableOpacity style={styles.actionCard} onPress={() => navigation.navigate("Scan")}>
+            <Search size={22} color={theme.colors.primary} />
+            <Text style={styles.actionText}>Inventory Lookup</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.actionCard} onPress={() => navigation.navigate("Scan")}>
+            <Box size={22} color={theme.colors.accent} />
+            <Text style={styles.actionText}>Quick Stock In</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* LIVE FEED */}
+        <View style={styles.feedHeader}>
+          <Text style={styles.feedTitle}>Live Scan Feed</Text>
+          <Text style={styles.realTime}>REAL-TIME</Text>
+        </View>
 
       {scans.length === 0 && !error && (
         <Text style={{ textAlign: "center", color: "#94a3b8", marginTop: 20 }}>
@@ -227,7 +201,7 @@ const DashboardScreen = ({ navigation }: any) => {
               </Text>
 
               <Text style={styles.scanItemSub}>
-                ID: {scan.serial_number} • {scan.reader_type}
+                ID: 2190962515 • {scan.reader_type}
               </Text>
             </View>
 
@@ -240,7 +214,25 @@ const DashboardScreen = ({ navigation }: any) => {
 
       })}
 
-    </ScrollView>
+      </ScrollView>
+
+      {/* FIXED PREMIUM SCAN FAB (BOTTOM) */}
+      <View style={styles.fabContainer}>
+        <TouchableOpacity
+          style={styles.premiumScanCardFAB}
+          onPress={() => navigation.navigate("Scan")}
+          activeOpacity={0.9}
+        >
+          <View style={styles.premiumScanIcon}>
+            <Search size={24} color="white" />
+          </View>
+          <View style={styles.premiumScanTextCol}>
+            <Text style={styles.premiumScanTitleFAB}>Ready to Scan</Text>
+            <Text style={styles.premiumScanSubFAB}>Tap to lookup inventory</Text>
+          </View>
+        </TouchableOpacity>
+      </View>
+    </View>
 
   );
 
@@ -252,6 +244,22 @@ export default DashboardScreen;
 
 const styles = StyleSheet.create({
 
+  mainContainer: {
+    flex: 1,
+    backgroundColor: theme.colors.bgMain,
+  },
+  fixedHeader: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    backgroundColor: theme.colors.bgMain,
+    zIndex: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  scrollArea: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
   container: {
     flex: 1,
     backgroundColor: theme.colors.bgMain,
@@ -287,34 +295,53 @@ const styles = StyleSheet.create({
     color: theme.colors.textMuted
   },
 
-  scanCard: {
-    backgroundColor: "#0f172a",
+  fabContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
     padding: 20,
-    borderRadius: 16,
+    background: 'transparent'
+  },
+  premiumScanCardFAB: {
+    backgroundColor: "#0f172a",
+    padding: 16,
+    borderRadius: 99,
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 25
+    elevation: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.44,
+    shadowRadius: 10.32,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)'
   },
-
-  scanIcon: {
-    width: 45,
-    height: 45,
-    borderRadius: 10,
+  premiumScanIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     backgroundColor: "#6366f1",
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 15
+    marginRight: 14
   },
-
-  scanTitle: {
+  premiumScanTextCol: {
+    flex: 1
+  },
+  premiumScanTitleFAB: {
     color: "white",
-    fontSize: 18,
-    fontWeight: "700"
+    fontSize: 16,
+    fontWeight: "800",
+    letterSpacing: 0.2
+  },
+  premiumScanSubFAB: {
+    color: "#94a3b8",
+    fontSize: 12,
+    fontWeight: "500",
+    marginTop: 1
   },
 
-  scanSub: {
-    color: "#94a3b8"
-  },
 
   statsGrid: {
     flexDirection: "row",
@@ -430,6 +457,71 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700",
     color: theme.colors.secondary
+  },
+  globalStatusBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 20,
+    gap: 10
+  },
+  globalStatusText: {
+    fontWeight: "700",
+    fontSize: 14,
+    textTransform: "uppercase",
+    letterSpacing: 0.5
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 15,
+    marginTop: 10
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: theme.colors.textMain
+  },
+  teamSlider: {
+    marginBottom: 25,
+    marginHorizontal: -5
+  },
+  userStatusCard: {
+    backgroundColor: "white",
+    padding: 15,
+    borderRadius: 16,
+    marginHorizontal: 5,
+    width: 120,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    position: "relative"
+  },
+  statusDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: "white",
+    position: "absolute",
+    top: 10,
+    right: 10,
+    zIndex: 1
+  },
+  userName: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: theme.colors.textMain,
+    marginTop: 8
+  },
+  userRole: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: theme.colors.textMuted,
+    marginTop: 2
   }
 
 });

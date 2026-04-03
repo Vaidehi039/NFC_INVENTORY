@@ -22,14 +22,16 @@ if (-not $selectedIP) {
 if (-not $selectedIP) {
     $selectedIP = "127.0.0.1"
     Write-Output "Warning: No network IP found, using 127.0.0.1"
-} else {
+}
+else {
     Write-Output "Detected Local IP: $selectedIP"
 }
 
 if ($PublicUrl) {
     $backendUrl = $PublicUrl
     Write-Output "Using Public/Tunnel URL: $backendUrl"
-} else {
+}
+else {
     $backendUrl = "http://$($selectedIP):8000"
     Write-Output "Target Backend URL: $backendUrl"
 }
@@ -38,8 +40,8 @@ if ($PublicUrl) {
 $mobileFile = Join-Path $PSScriptRoot "nfc-inventory-mobile\src\api.ts"
 if (Test-Path $mobileFile) {
     $content = Get-Content $mobileFile -Raw
-    $regex = 'const API_URL = "http[s]?://[^"]*";'
-    $replace = 'const API_URL = "' + $backendUrl + '";'
+    $regex = '(let|const) API_URL = "http[s]?://[^"]*";'
+    $replace = 'let API_URL = "' + $backendUrl + '";'
     $newContent = $content -replace $regex, $replace
     Set-Content -Path $mobileFile -Value $newContent
     Write-Output "Updated Mobile: $mobileFile"

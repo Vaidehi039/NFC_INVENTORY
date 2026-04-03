@@ -62,6 +62,27 @@ export const login = async (email: string, password: string) => {
   return data;
 };
 
+export const updateUserStatus = async (email: string, status: string) => {
+  const response = await api.post("user/status", { email, status });
+  return response.data;
+};
+
+export const logout = async () => {
+  const userEmail = localStorage.getItem("userEmail");
+  if (userEmail) {
+    try {
+      await updateUserStatus(userEmail, "offline");
+    } catch (err) {
+      console.error("Failed to set offline status on logout");
+    }
+  }
+  localStorage.removeItem("token");
+  localStorage.removeItem("user");
+  localStorage.removeItem("role");
+  localStorage.removeItem("userName");
+  localStorage.removeItem("userEmail");
+};
+
 export const register = async (name: string, email: string, password: string, role?: string) => {
   const response = await api.post("auth/register", { name, email, password, role });
   return response.data;
@@ -80,6 +101,16 @@ export const googleLogin = async (token: string) => {
   }
 
   return data;
+};
+
+export const getProfile = async () => {
+  const response = await api.get("auth/profile");
+  return response.data;
+};
+
+export const updateProfile = async (profileData: any) => {
+  const response = await api.put("auth/profile", profileData);
+  return response.data;
 };
 
 export const forgotPassword = async (email: string) => {
@@ -124,8 +155,13 @@ export const deleteProduct = async (productId: number) => {
 // PRODUCT BY SKU
 // =========================
 
-export const getProductBySku = async (sku: string) => {
-  const response = await api.get(`product/${sku}`);
+export const getProductByTagId = async (tagId: string) => {
+  const response = await api.get(`product/${tagId}`);
+  return response.data;
+};
+
+export const stockUpdate = async (productId: number, action: string, quantity: number = 1) => {
+  const response = await api.post("stock/update", { productId, action, quantity });
   return response.data;
 };
 
@@ -210,3 +246,5 @@ export const getNfcScans = async () => {
 };
 
 export default api;
+
+

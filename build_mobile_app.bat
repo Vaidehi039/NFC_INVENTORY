@@ -14,7 +14,7 @@ echo.
 
 set /p choice="Do you want to log in to Expo now? (y/n): "
 if /i "%choice%"=="y" (
-    npx eas login
+    npx -y eas-cli login
 )
 
 echo.
@@ -28,17 +28,17 @@ set /p buildtype="Enter choice (1-3): "
 
 if "%buildtype%"=="1" (
     echo Building Android Release APK...
-    npx eas build --platform android --profile preview
+    npx -y eas-cli build --platform android --profile preview
 )
 
 if "%buildtype%"=="2" (
     echo Building Android Development Client...
-    npx eas build --platform android --profile development
+    npx -y eas-cli build --platform android --profile development
 )
 
 if "%buildtype%"=="3" (
     echo Building iOS...
-    npx eas build --platform ios
+    npx -y eas-cli build --platform ios
 )
 
 echo.

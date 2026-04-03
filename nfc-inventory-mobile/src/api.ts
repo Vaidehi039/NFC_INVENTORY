@@ -3,8 +3,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 /* ================= API URL ================= */
 
-const DEFAULT_API_URL = "https://abcd1234.ngrok-free.app";
-let API_URL = DEFAULT_API_URL;
+let API_URL = "http://192.168.31.120:8000";
 
 /* ================= AXIOS INSTANCE ================= */
 
@@ -71,7 +70,17 @@ export const register = async (data: {
   return response.data;
 };
 
+export const updateUserStatus = async (email: string, status: string) => {
+  const response = await api.post("/api/user/status", { email, status });
+  return response.data;
+};
+
 export const logout = async () => {
+  const userStr = await AsyncStorage.getItem("user");
+  if (userStr) {
+    const user = JSON.parse(userStr);
+    await updateUserStatus(user.email, "offline");
+  }
   await AsyncStorage.removeItem("token");
   await AsyncStorage.removeItem("user");
 };
@@ -199,6 +208,12 @@ export const scanTag = async (tag_id: string, token: string) => {
 };
 
 export default api;
+
+
+
+
+
+
 
 
 
